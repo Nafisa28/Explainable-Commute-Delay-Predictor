@@ -1,0 +1,9 @@
+flask
+pandas
+xgboost
+shap
+scikit-learn
+requests
+python-dotenv
+supabase
+apscheduler
