@@ -1,13 +1,23 @@
+import { ScrollReveal } from "@/components/ScrollReveal";
+import TiltContainer from "@/components/TiltContainer";
+
 export default function HistoryPage() {
   return (
     <div className="page-container">
-      <h1 className="section-heading mb-2">Prediction History</h1>
+      <div className="flex items-center gap-3 mb-2">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-route-dim text-accent-route text-lg animate-float-icon">
+          ⏱️
+        </div>
+        <h1 className="section-heading mb-0">Prediction History</h1>
+      </div>
       <p className="text-text-secondary mb-8">
         Review your past delay predictions, actual outcomes, and SHAP
         explanations. Log in to access your history.
       </p>
 
-      <div className="card overflow-x-auto">
+      <ScrollReveal>
+        <TiltContainer>
+          <div className="card overflow-x-auto placeholder-card">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-text-muted">
@@ -45,6 +55,8 @@ export default function HistoryPage() {
           </tbody>
         </table>
       </div>
+      </TiltContainer>
+      </ScrollReveal>
 
       <p className="mt-4 text-center text-xs text-text-muted">
         Placeholder data — real predictions will appear once you start using the

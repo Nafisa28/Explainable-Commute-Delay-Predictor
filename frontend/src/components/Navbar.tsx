@@ -32,21 +32,29 @@ export default function Navbar() {
         </Link>
 
         {/* Center nav links */}
-        <ul className="hidden md:flex items-center gap-1">
+        <ul className="hidden md:flex items-center gap-6">
           {navLinks.map((link) => (
             <li key={link.href}>
               <Link
                 href={link.href}
                 className={`
-                  px-3.5 py-2 rounded-lg text-sm font-medium no-underline transition-colors
+                  relative py-1.5 text-sm font-medium no-underline transition-colors duration-300 group
                   ${
                     isActive(link.href)
-                      ? "bg-accent-route-dim text-accent-route"
-                      : "text-text-secondary hover:text-ink hover:bg-bg-page"
+                      ? "text-accent-route"
+                      : "text-text-secondary hover:text-ink"
                   }
                 `}
               >
-                {link.label}
+                <span>{link.label}</span>
+                {/* Underline draw effect */}
+                <span
+                  className={`
+                    absolute bottom-0 left-0 right-0 h-[2px] bg-accent-route origin-left scale-x-0 transition-transform duration-300 ease-out
+                    group-hover:scale-x-100
+                    ${isActive(link.href) ? "scale-x-100" : ""}
+                  `}
+                />
               </Link>
             </li>
           ))}
