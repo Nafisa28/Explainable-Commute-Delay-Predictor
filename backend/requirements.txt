@@ -1,5 +1,7 @@
 flask
 pandas
+numpy
+pyarrow
 xgboost
 shap
 scikit-learn
