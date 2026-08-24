@@ -8,7 +8,7 @@
 #   - SUPABASE_URL       : Your Supabase project URL (e.g. https://xxxx.supabase.co)
 #   - SUPABASE_KEY       : Your Supabase service-role key
 #   - WEATHER_API_KEY    : OpenWeatherMap API key
-#   - OSRM_BASE_URL      : OSRM router endpoint (e.g. http://router.project-osrm.org)
+#   - TOMTOM_API_KEY     : TomTom Routing API key (traffic-aware routing)
 # ============================================================================
 
 name: Collect Data
@@ -27,7 +27,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
       WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
-      OSRM_BASE_URL: ${{ secrets.OSRM_BASE_URL }}
+      TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
 
     steps:
       - name: Checkout repository
