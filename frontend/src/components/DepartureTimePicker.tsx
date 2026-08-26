@@ -68,11 +68,16 @@ export default function DepartureTimePicker({
     try {
       const date = new Date(iso);
       if (isNaN(date.getTime())) return "Invalid date";
-      return date.toLocaleTimeString([], {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      });
+      
+      let hours = date.getHours();
+      const minutes = date.getMinutes();
+      const ampm = hours >= 12 ? "PM" : "AM";
+      
+      hours = hours % 12;
+      hours = hours ? hours : 12; // the hour '0' should be '12'
+      const minutesStr = minutes < 10 ? "0" + minutes : minutes;
+      
+      return `${hours}:${minutesStr} ${ampm}`;
     } catch {
       return "Now";
     }

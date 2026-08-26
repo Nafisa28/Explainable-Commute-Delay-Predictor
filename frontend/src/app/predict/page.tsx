@@ -1,66 +1,33 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { Route, PredictionResponse } from "@/types/prediction";
-import { getPrediction } from "@/lib/mockApi";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Route } from "@/types/prediction";
 import RoutePicker from "@/components/RoutePicker";
 import DepartureTimePicker from "@/components/DepartureTimePicker";
-import DelayPrediction from "@/components/DelayPrediction";
 import { ScrollReveal } from "@/components/ScrollReveal";
 
 export default function PredictPage() {
+  const router = useRouter();
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
   const [departureTime, setDepartureTime] = useState<string>(() =>
     new Date().toISOString()
   );
 
-  // Prediction State
-  const [prediction, setPrediction] = useState<PredictionResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Request ID ref to prevent race conditions & stale responses
-  const activeRequestIdRef = useRef(0);
-
-  const fetchPrediction = async (routeId: string, timeIso: string) => {
-    const currentId = ++activeRequestIdRef.current;
-
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await getPrediction(routeId, timeIso);
-
-      // Discard response if a newer selection/request superseded this one
-      if (currentId !== activeRequestIdRef.current) return;
-
-      setPrediction(res);
-    } catch (err: unknown) {
-      // Discard error if superseded
-      if (currentId !== activeRequestIdRef.current) return;
-
-      const message =
-        err instanceof Error
-          ? err.message
-          : "An unexpected error occurred while fetching the delay prediction.";
-      setError(message);
-      setPrediction(null);
-    } finally {
-      if (currentId === activeRequestIdRef.current) {
-        setLoading(false);
-      }
-    }
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRoute) return;
-    fetchPrediction(selectedRoute.id, departureTime);
-  };
 
-  const handleRetry = () => {
-    if (!selectedRoute) return;
-    // Retries with the currently selected route and departure time
-    fetchPrediction(selectedRoute.id, departureTime);
+    const queryParams = new URLSearchParams({
+      route_id: selectedRoute.id,
+      departure_time: departureTime,
+    });
+    
+    if (selectedRoute.path_variants && selectedRoute.path_variants.length > 0) {
+      queryParams.append("path_variant", selectedRoute.path_variants[0]);
+    }
+
+    router.push(`/predict/results?${queryParams.toString()}`);
   };
 
   return (
@@ -84,11 +51,6 @@ export default function PredictPage() {
                 selectedRoute={selectedRoute}
                 onSelectRoute={(route) => {
                   setSelectedRoute(route);
-                  // Invalidate any in-flight request and clear old prediction
-                  activeRequestIdRef.current++;
-                  setLoading(false);
-                  setPrediction(null);
-                  setError(null);
                 }}
               />
             </div>
@@ -102,10 +64,6 @@ export default function PredictPage() {
                 value={departureTime}
                 onChange={(iso) => {
                   setDepartureTime(iso);
-                  // Invalidate in-flight request if user actively tweaks time
-                  activeRequestIdRef.current++;
-                  setLoading(false);
-                  setError(null);
                 }}
               />
 
@@ -135,63 +93,25 @@ export default function PredictPage() {
               {/* Submit CTA */}
               <button
                 type="submit"
-                disabled={!selectedRoute || loading}
+                disabled={!selectedRoute}
                 className="btn btn-primary w-full py-3 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none transition-all flex items-center justify-center gap-2"
               >
-                {loading ? (
-                  <>
-                    <svg
-                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      />
-                    </svg>
-                    <span>Calculating Prediction...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Get Prediction</span>
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                      <polyline points="12 5 19 12 12 19" />
-                    </svg>
-                  </>
-                )}
+                <span>Get Prediction</span>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
               </button>
             </form>
-
-            {/* Delay Prediction Display (Loading / Error / Result) */}
-            {(loading || error || prediction) && (
-              <DelayPrediction
-                prediction={prediction}
-                loading={loading}
-                error={error}
-                onRetry={handleRetry}
-              />
-            )}
           </div>
         </div>
       </ScrollReveal>
