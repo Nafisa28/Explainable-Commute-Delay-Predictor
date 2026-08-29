@@ -23,6 +23,7 @@ if PROJECT_ROOT not in sys.path:
 
 from backend.explainability.shap_explainer_v2 import explain_prediction_v2
 from backend.inference.compare_routes_v2 import compare_alternate_routes
+from backend.inference.best_time_v2 import find_best_departure_time_v2
 
 app = Flask(__name__)
 # Enable CORS for all routes (allows Next.js frontend on localhost:3000 to call localhost:5000)
@@ -284,6 +285,111 @@ def predict_compare_routes():
         return jsonify({
             "error": str(e),
             "message": "Failed to compare alternate routes."
+        }), 500
+
+
+# ── Best Departure Time Endpoint (Model V2) ──────────────────────────────────
+
+@app.route("/predict/best-time-v2", methods=["GET"])
+def predict_best_time_v2():
+    """
+    GET /predict/best-time-v2
+
+    Query Parameters:
+      - origin_lat (float, required): Latitude of commute origin
+      - origin_lng (float, required): Longitude of commute origin
+      - dest_lat (float, required): Latitude of commute destination
+      - dest_lng (float, required): Longitude of commute destination
+      - departure_time (str, optional): ISO-8601 initial departure timestamp (defaults to now)
+      - origin_name (str, optional): Display name for origin
+      - dest_name (str, optional): Display name for destination
+      - window_hours (float, optional): Forward search window in hours (default 2.5)
+      - step_minutes (int, optional): Step size in minutes (default 15)
+
+    Returns:
+      JSON payload with optimal departure time recommendation:
+      {
+        "origin_name": str,
+        "dest_name": str,
+        "current_departure_time": str (ISO 8601),
+        "current_live_travel_time_min": float,
+        "recommended_departure_time": str (ISO 8601),
+        "recommended_live_travel_time_min": float,
+        "savings_min": float,
+        "free_flow_travel_time_min": float,
+        "distance_km": float,
+        "timeline": list of candidate evaluations
+      }
+    """
+    try:
+        # 1. Parse & validate coordinates
+        origin_lat_str = request.args.get("origin_lat")
+        origin_lng_str = request.args.get("origin_lng")
+        dest_lat_str = request.args.get("dest_lat")
+        dest_lng_str = request.args.get("dest_lng")
+
+        if not all([origin_lat_str, origin_lng_str, dest_lat_str, dest_lng_str]):
+            return jsonify({
+                "error": "Missing required coordinate parameters: origin_lat, origin_lng, dest_lat, dest_lng"
+            }), 400
+
+        try:
+            origin_lat = float(origin_lat_str)
+            origin_lng = float(origin_lng_str)
+            dest_lat = float(dest_lat_str)
+            dest_lng = float(dest_lng_str)
+        except ValueError:
+            return jsonify({
+                "error": "Coordinates must be valid floating point numbers."
+            }), 400
+
+        # 2. Parse departure_time
+        dep_time_str = request.args.get("departure_time")
+        if dep_time_str:
+            try:
+                clean_iso = dep_time_str.replace("Z", "+00:00")
+                departure_time = datetime.fromisoformat(clean_iso)
+            except Exception:
+                departure_time = datetime.now(timezone.utc)
+        else:
+            departure_time = datetime.now(timezone.utc)
+
+        # 3. Parse optional parameters
+        origin_name = request.args.get("origin_name")
+        dest_name = request.args.get("dest_name")
+
+        try:
+            window_hours = float(request.args.get("window_hours", 2.5))
+            window_hours = max(0.5, min(window_hours, 6.0))
+        except ValueError:
+            window_hours = 2.5
+
+        try:
+            step_minutes = int(request.args.get("step_minutes", 15))
+            step_minutes = max(5, min(step_minutes, 60))
+        except ValueError:
+            step_minutes = 15
+
+        # 4. Call best_time_v2 optimizer
+        result = find_best_departure_time_v2(
+            origin_lat=origin_lat,
+            origin_lng=origin_lng,
+            dest_lat=dest_lat,
+            dest_lng=dest_lng,
+            current_departure_time=departure_time,
+            origin_name=origin_name,
+            dest_name=dest_name,
+            window_hours=window_hours,
+            step_minutes=step_minutes,
+        )
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        app.logger.error(f"Error in /predict/best-time-v2: {e}", exc_info=True)
+        return jsonify({
+            "error": str(e),
+            "message": "Failed to find optimal departure time."
         }), 500
 
 

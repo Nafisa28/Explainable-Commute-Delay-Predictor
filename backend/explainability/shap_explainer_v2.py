@@ -186,6 +186,7 @@ def prepare_feature_row_v2(
     departure_time: datetime,
     supabase_client: Optional[Client] = None,
     return_traffic: bool = False,
+    traffic: Optional[dict] = None,
 ) -> pd.DataFrame:
     """
     Constructs a single-row feature vector matching Model V2's schema.
@@ -202,6 +203,8 @@ def prepare_feature_row_v2(
         Supabase client (for weather/event lookup). Created from env if None.
     return_traffic : bool, optional
         If True, returns a tuple of (pd.DataFrame, traffic_dict).
+    traffic : dict, optional
+        Precomputed live traffic dictionary from get_live_traffic_features.
 
     Returns
     -------
@@ -225,7 +228,8 @@ def prepare_feature_row_v2(
         dt_utc = departure_time.astimezone(timezone.utc)
 
     # ── 3. Live traffic features via TomTom ──────────────────────────────
-    traffic = get_live_traffic_features(origin_lat, origin_lng, dest_lat, dest_lng)
+    if traffic is None:
+        traffic = get_live_traffic_features(origin_lat, origin_lng, dest_lat, dest_lng)
     congestion_ratio = traffic["congestion_ratio"]
 
     # ── 4. Temporal features ─────────────────────────────────────────────
