@@ -1,8 +1,8 @@
 """
 Flask API Server for Explainable Commute Delay Predictor
 
-Provides endpoints for real-time delay predictions and SHAP-based explanations
-using Model V2 and TomTom live traffic data.
+Provides endpoints for real-time delay predictions, SHAP-based explanations,
+and alternate route comparisons using Model V2 and TomTom live traffic data.
 """
 
 import os
@@ -17,6 +17,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from backend.explainability.shap_explainer_v2 import explain_prediction_v2
+from backend.inference.compare_routes_v2 import compare_alternate_routes
 
 app = Flask(__name__)
 # Enable CORS for all routes (allows Next.js frontend on localhost:3000 to call localhost:5000)
@@ -117,6 +118,115 @@ def predict_explain():
         return jsonify({
             "error": str(e),
             "message": "Failed to compute delay prediction explanation."
+        }), 500
+
+
+@app.route("/predict/compare-routes", methods=["GET"])
+def predict_compare_routes():
+    """
+    GET /predict/compare-routes
+
+    Query Parameters:
+      - origin_lat (float, required): Latitude of commute origin
+      - origin_lng (float, required): Longitude of commute origin
+      - dest_lat (float, required): Latitude of commute destination
+      - dest_lng (float, required): Longitude of commute destination
+      - departure_time (str, optional): ISO-8601 departure timestamp (defaults to now)
+      - max_alternatives (int, optional): Number of alternatives to request (default 2)
+      - origin_name (str, optional): Display name for origin
+      - dest_name (str, optional): Display name for destination
+
+    Returns:
+      JSON payload with sorted alternate route options:
+      {
+        "origin": { "name": str, "lat": float, "lng": float },
+        "destination": { "name": str, "lat": float, "lng": float },
+        "departure_time": str,
+        "route_options": list of {
+            "route_index": int,
+            "description": str,
+            "predicted_delay_min": float,
+            "congestion_ratio": float,
+            "distance_km": float,
+            "live_travel_time_min": float,
+            "free_flow_travel_time_min": float,
+            "is_best": bool
+        }
+      }
+    """
+    try:
+        # 1. Parse & validate coordinates
+        origin_lat_str = request.args.get("origin_lat")
+        origin_lng_str = request.args.get("origin_lng")
+        dest_lat_str = request.args.get("dest_lat")
+        dest_lng_str = request.args.get("dest_lng")
+
+        if not all([origin_lat_str, origin_lng_str, dest_lat_str, dest_lng_str]):
+            return jsonify({
+                "error": "Missing required coordinate parameters: origin_lat, origin_lng, dest_lat, dest_lng"
+            }), 400
+
+        try:
+            origin_lat = float(origin_lat_str)
+            origin_lng = float(origin_lng_str)
+            dest_lat = float(dest_lat_str)
+            dest_lng = float(dest_lng_str)
+        except ValueError:
+            return jsonify({
+                "error": "Coordinates must be valid floating point numbers."
+            }), 400
+
+        # 2. Parse departure_time
+        dep_time_str = request.args.get("departure_time")
+        if dep_time_str:
+            try:
+                clean_iso = dep_time_str.replace("Z", "+00:00")
+                departure_time = datetime.fromisoformat(clean_iso)
+            except Exception:
+                departure_time = datetime.now(timezone.utc)
+        else:
+            departure_time = datetime.now(timezone.utc)
+
+        # 3. Parse max_alternatives
+        try:
+            max_alternatives = int(request.args.get("max_alternatives", 2))
+            max_alternatives = max(1, min(max_alternatives, 5))
+        except ValueError:
+            max_alternatives = 2
+
+        origin_name = request.args.get("origin_name", "Origin")
+        dest_name = request.args.get("dest_name", "Destination")
+
+        # 4. Run Alternate Routes Comparison
+        route_options = compare_alternate_routes(
+            origin_lat=origin_lat,
+            origin_lng=origin_lng,
+            dest_lat=dest_lat,
+            dest_lng=dest_lng,
+            departure_time=departure_time,
+            max_alternatives=max_alternatives,
+        )
+
+        return jsonify({
+            "origin": {
+                "name": origin_name,
+                "lat": origin_lat,
+                "lng": origin_lng
+            },
+            "destination": {
+                "name": dest_name,
+                "lat": dest_lat,
+                "lng": dest_lng
+            },
+            "departure_time": departure_time.isoformat(),
+            "route_options": route_options
+        }), 200
+
+    except Exception as e:
+        app.logger.error(f"Error in /predict/compare-routes: {e}", exc_info=True)
+        return jsonify({
+            "error": str(e),
+            "message": "Failed to compare alternate routes."
         }), 500
 
 

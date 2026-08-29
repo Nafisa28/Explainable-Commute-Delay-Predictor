@@ -10,7 +10,22 @@ interface ShapExplanationResponse {
   route_name: string;
   predicted_delay_min: number;
   base_value_min: number;
+  live_travel_time_min?: number;
+  free_flow_travel_time_min?: number;
+  traffic_delay_min?: number;
+  distance_km?: number;
   factors: ShapFactor[];
+}
+
+interface RouteOption {
+  route_index: number;
+  description: string;
+  predicted_delay_min: number;
+  congestion_ratio: number;
+  distance_km: number;
+  live_travel_time_min: number;
+  free_flow_travel_time_min: number;
+  is_best: boolean;
 }
 
 const API_BASE_URL =
@@ -122,18 +137,75 @@ function generateMockShapResponse(
       ? `${originName} → ${destName}`
       : originName || "Custom Bengaluru Route";
 
+  const live_travel_time_min = isMorningPeak ? 54.0 : isEveningPeak ? 58.0 : 42.0;
+  const free_flow_travel_time_min = 32.0;
+  const traffic_delay_min = live_travel_time_min - free_flow_travel_time_min;
+
   return {
     route_name,
     predicted_delay_min: parseFloat(predicted_delay_min.toFixed(2)),
     base_value_min: parseFloat(base_value_min.toFixed(2)),
+    live_travel_time_min,
+    free_flow_travel_time_min,
+    traffic_delay_min,
+    distance_km: 18.2,
     factors,
   };
+}
+
+function generateMockAlternateRoutes(
+  originName: string,
+  destName: string
+): RouteOption[] {
+  return [
+    {
+      route_index: 1,
+      description: `via Main Arterial & ${originName || "Central"} Corridor`,
+      predicted_delay_min: 2.1,
+      congestion_ratio: 1.25,
+      distance_km: 18.5,
+      live_travel_time_min: 42.0,
+      free_flow_travel_time_min: 33.6,
+      is_best: true,
+    },
+    {
+      route_index: 2,
+      description: `via Outer Ring Road & ${destName || "East"} Connector`,
+      predicted_delay_min: 4.8,
+      congestion_ratio: 1.45,
+      distance_km: 22.4,
+      live_travel_time_min: 49.5,
+      free_flow_travel_time_min: 34.1,
+      is_best: false,
+    },
+    {
+      route_index: 3,
+      description: `via Surface Corridor & Bypass`,
+      predicted_delay_min: 6.2,
+      congestion_ratio: 1.62,
+      distance_km: 17.8,
+      live_travel_time_min: 55.0,
+      free_flow_travel_time_min: 34.0,
+      is_best: false,
+    },
+  ];
+}
+
+function formatCongestionPhrase(ratio: number): string {
+  if (ratio > 1.05) {
+    const pct = Math.round((ratio - 1.0) * 100);
+    return `${pct}% heavier than usual`;
+  } else if (ratio < 0.95) {
+    const pct = Math.round((1.0 - ratio) * 100);
+    return `${pct}% lighter than usual`;
+  }
+  return "Typical free-flow traffic";
 }
 
 function ResultsContent() {
   const searchParams = useSearchParams();
 
-  // Read new coordinate-based query parameters
+  // Read coordinate-based query parameters
   const originName = searchParams.get("origin_name") || "";
   const originLat = searchParams.get("origin_lat");
   const originLng = searchParams.get("origin_lng");
@@ -149,32 +221,38 @@ function ResultsContent() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ShapExplanationResponse | null>(null);
 
+  // Alternate route comparison state
+  const [compareRoutes, setCompareRoutes] = useState<RouteOption[]>([]);
+  const [compareLoading, setCompareLoading] = useState(true);
+
   const hasCoordinates = Boolean(originLat && originLng && destLat && destLng);
   const hasValidRequest = hasCoordinates || Boolean(legacyRouteId);
 
   useEffect(() => {
     if (!hasValidRequest) {
       setLoading(false);
+      setCompareLoading(false);
       return;
     }
 
-    const fetchData = async () => {
+    const queryParams = new URLSearchParams();
+    if (originLat && originLng && destLat && destLng) {
+      queryParams.append("origin_lat", originLat);
+      queryParams.append("origin_lng", originLng);
+      queryParams.append("dest_lat", destLat);
+      queryParams.append("dest_lng", destLng);
+      if (originName) queryParams.append("origin_name", originName);
+      if (destName) queryParams.append("dest_name", destName);
+    }
+    if (departureTime) {
+      queryParams.append("departure_time", departureTime);
+    }
+
+    // 1. Fetch SHAP Explainability Data
+    const fetchExplainData = async () => {
       setLoading(true);
       setError(null);
       try {
-        const queryParams = new URLSearchParams();
-        if (originLat && originLng && destLat && destLng) {
-          queryParams.append("origin_lat", originLat);
-          queryParams.append("origin_lng", originLng);
-          queryParams.append("dest_lat", destLat);
-          queryParams.append("dest_lng", destLng);
-          if (originName) queryParams.append("origin_name", originName);
-          if (destName) queryParams.append("dest_name", destName);
-        }
-        if (departureTime) {
-          queryParams.append("departure_time", departureTime);
-        }
-
         const endpointUrl = `${API_BASE_URL}/predict/explain?${queryParams.toString()}`;
         const res = await fetch(endpointUrl);
         if (!res.ok) {
@@ -184,7 +262,7 @@ function ResultsContent() {
         setData(json);
       } catch (err: any) {
         console.warn(
-          "Could not fetch from live Flask API (http://localhost:5000), using fallback mock Model V2 explanation:",
+          "Could not fetch from live Flask API (http://localhost:5000/predict/explain), using fallback mock Model V2 explanation:",
           err
         );
         const mockData = generateMockShapResponse(
@@ -198,7 +276,32 @@ function ResultsContent() {
       }
     };
 
-    fetchData();
+    // 2. Fetch Alternate Route Comparison Data
+    const fetchCompareData = async () => {
+      setCompareLoading(true);
+      try {
+        const endpointUrl = `${API_BASE_URL}/predict/compare-routes?${queryParams.toString()}`;
+        const res = await fetch(endpointUrl);
+        if (!res.ok) {
+          throw new Error(`HTTP error ${res.status}: ${res.statusText}`);
+        }
+        const json = await res.json();
+        setCompareRoutes(json.route_options || []);
+      } catch (err: any) {
+        console.warn(
+          "Could not fetch from live Flask API (http://localhost:5000/predict/compare-routes), using fallback mock alternate routes:",
+          err
+        );
+        setCompareRoutes(
+          generateMockAlternateRoutes(originName || "Origin", destName || "Destination")
+        );
+      } finally {
+        setCompareLoading(false);
+      }
+    };
+
+    fetchExplainData();
+    fetchCompareData();
   }, [originLat, originLng, destLat, destLng, originName, destName, departureTime, hasValidRequest]);
 
   if (!hasValidRequest) {
@@ -250,8 +353,14 @@ function ResultsContent() {
     );
   }
 
-  const delta = data.predicted_delay_min - data.base_value_min;
-  const deltaSign = delta > 0 ? "+" : "";
+  // Calculate honest real-world traffic delay (lost to traffic vs free-flow)
+  const hasLiveTimes = typeof data.live_travel_time_min === "number" && typeof data.free_flow_travel_time_min === "number";
+  const liveTravelMin = data.live_travel_time_min ?? 0;
+  const freeFlowMin = data.free_flow_travel_time_min ?? 0;
+  const realTrafficDelayMin = data.traffic_delay_min ?? (hasLiveTimes ? Math.max(0, liveTravelMin - freeFlowMin) : null);
+
+  const modelDelta = data.predicted_delay_min - data.base_value_min;
+  const modelDeltaSign = modelDelta > 0 ? "+" : "";
 
   return (
     <div className="page-container py-8">
@@ -292,34 +401,53 @@ function ResultsContent() {
         <div className="lg:col-span-4 flex flex-col gap-6 w-full">
           <ScrollReveal delayOffset={0.05}>
             <div className="card flex flex-col gap-5">
-              <div className="border-b border-border pb-4">
+              <div className="border-b border-border pb-4 flex items-center justify-between">
                 <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-                  Delay Estimate
+                  {hasLiveTimes ? "Traffic Delay (vs Clear Roads)" : "Model Delay Estimate"}
                 </span>
+                {hasLiveTimes && (
+                  <span className="text-[11px] font-medium text-accent-route bg-accent-route/10 px-2 py-0.5 rounded-full">
+                    Real-time
+                  </span>
+                )}
               </div>
 
-              {/* Large Metric */}
-              <div className="flex flex-col items-center justify-center py-3 text-center">
-                <div className="flex items-baseline gap-1.5 mb-1">
-                  <span className="font-mono text-5xl font-bold tracking-tight text-ink tabular-nums">
-                    +{data.predicted_delay_min.toFixed(1)}
-                  </span>
-                  <span className="text-lg font-medium text-text-secondary">min</span>
-                </div>
-                <p className="text-xs sm:text-sm text-text-secondary font-medium mt-1">
-                  {delta === 0 ? (
-                    <span>
-                      Matches baseline value ({data.base_value_min.toFixed(1)} min baseline)
-                    </span>
-                  ) : (
-                    <span>
-                      <strong className="text-ink font-semibold">
-                        {deltaSign}{delta.toFixed(1)} min
-                      </strong>{" "}
-                      shift from baseline ({data.base_value_min.toFixed(1)} min baseline)
-                    </span>
-                  )}
-                </p>
+              {/* Large Metric: Directly Honest to Travel Time */}
+              <div className="flex flex-col items-center justify-center py-2 text-center">
+                {hasLiveTimes && realTrafficDelayMin !== null ? (
+                  <>
+                    <div className="flex items-baseline gap-1.5 mb-1">
+                      <span className="font-mono text-5xl font-bold tracking-tight text-ink tabular-nums">
+                        +{Math.round(realTrafficDelayMin)}
+                      </span>
+                      <span className="text-lg font-medium text-text-secondary">min</span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-text-secondary font-medium mt-1">
+                      slower than clear roads (~{Math.round(freeFlowMin)} min free-flow)
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-baseline gap-1.5 mb-1">
+                      <span className="font-mono text-5xl font-bold tracking-tight text-ink tabular-nums">
+                        +{data.predicted_delay_min.toFixed(1)}
+                      </span>
+                      <span className="text-lg font-medium text-text-secondary">min</span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-text-secondary font-medium mt-1">
+                      {modelDelta === 0 ? (
+                        <span>Matches model average ({data.base_value_min.toFixed(1)} min baseline)</span>
+                      ) : (
+                        <span>
+                          <strong className="text-ink font-semibold">
+                            {modelDeltaSign}{modelDelta.toFixed(1)} min
+                          </strong>{" "}
+                          shift vs typical route average ({data.base_value_min.toFixed(1)} min baseline)
+                        </span>
+                      )}
+                    </p>
+                  </>
+                )}
               </div>
 
               {/* Context Info */}
@@ -328,6 +456,42 @@ function ResultsContent() {
                   <span className="text-text-muted text-xs font-semibold">Route:</span>
                   <span className="font-medium text-ink text-right">{data.route_name}</span>
                 </div>
+
+                {hasLiveTimes && (
+                  <div className="flex flex-col gap-1.5 border-t border-border/60 pt-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-text-muted">Live Travel Time:</span>
+                      <span className="font-mono font-bold text-ink">
+                        ~{Math.round(liveTravelMin)} min
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-text-muted">Clear Roads (Free-flow):</span>
+                      <span className="font-mono text-text-secondary">
+                        ~{Math.round(freeFlowMin)} min
+                      </span>
+                    </div>
+                    {typeof data.distance_km === "number" && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-text-muted">Distance:</span>
+                        <span className="font-mono text-text-secondary">
+                          {data.distance_km.toFixed(1)} km
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Model Attribution Context */}
+                <div className="flex flex-col gap-1 border-t border-border/60 pt-2 text-xs">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-text-muted">Model baseline shift:</span>
+                    <span className="font-mono text-text-secondary text-right">
+                      {modelDeltaSign}{modelDelta.toFixed(1)} min vs typical
+                    </span>
+                  </div>
+                </div>
+
                 {originName && destName && (
                   <div className="flex flex-col gap-1 border-t border-border/60 pt-2 text-xs">
                     <div className="flex items-start justify-between gap-2">
@@ -344,8 +508,9 @@ function ResultsContent() {
                     </div>
                   </div>
                 )}
-                <div className="flex items-start justify-between gap-2 border-t border-border/60 pt-2">
-                  <span className="text-text-muted text-xs font-semibold">Departure Window:</span>
+
+                <div className="flex items-start justify-between gap-2 border-t border-border/60 pt-2 text-xs">
+                  <span className="text-text-muted font-semibold">Departure Window:</span>
                   <span className="font-mono text-ink text-right">
                     {new Date(departureTime).toLocaleString("en-US", {
                       weekday: "short",
@@ -384,6 +549,158 @@ function ResultsContent() {
           </ScrollReveal>
         </div>
       </StaggerContainer>
+
+      {/* Alternate Route Comparison Section */}
+      <div className="mt-12">
+        <ScrollReveal delayOffset={0.2}>
+          <div className="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-border pb-4">
+            <div>
+              <span className="badge-pill mb-2">Alternative Paths</span>
+              <h2 className="text-xl font-bold font-display text-ink">
+                Or try a different route
+              </h2>
+              <p className="text-xs sm:text-sm text-text-secondary mt-1">
+                Real-time travel times and traffic conditions across alternative corridors between your origin and destination.
+              </p>
+            </div>
+            {compareRoutes.length > 0 && compareRoutes[0].is_best && (
+              <div className="text-xs font-medium text-text-secondary flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-accent-route" />
+                Sorted by fastest total travel time
+              </div>
+            )}
+          </div>
+        </ScrollReveal>
+
+        {compareLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="card animate-pulse flex flex-col justify-between gap-4 p-6 min-h-[220px]"
+              >
+                <div className="flex flex-col gap-2">
+                  <div className="h-4 bg-border/80 rounded w-3/4" />
+                  <div className="h-3 bg-border/60 rounded w-1/3" />
+                </div>
+                <div className="h-10 bg-border/60 rounded w-1/2 my-4" />
+                <div className="flex justify-between items-center pt-2">
+                  <div className="h-3 bg-border/60 rounded w-1/3" />
+                  <div className="h-3 bg-border/60 rounded w-1/4" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : compareRoutes.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {compareRoutes.map((route, idx) => {
+              const congestionPhrase = formatCongestionPhrase(route.congestion_ratio);
+              const isHeavy = route.congestion_ratio >= 1.35;
+              const isModerate =
+                route.congestion_ratio >= 1.15 && route.congestion_ratio < 1.35;
+
+              // Honest, direct calculation: live travel time minus free-flow travel time
+              const trafficLostMin = Math.max(
+                0,
+                Math.round(route.live_travel_time_min - route.free_flow_travel_time_min)
+              );
+
+              return (
+                <ScrollReveal key={route.route_index || idx} delayOffset={0.08 * (idx + 1)}>
+                  <div
+                    className={`card relative flex flex-col justify-between h-full p-6 transition-all duration-200 hover:shadow-md ${
+                      route.is_best
+                        ? "border-accent-route/50 bg-accent-route/[0.03] ring-1 ring-accent-route/30"
+                        : "hover:border-border-strong"
+                    }`}
+                  >
+                    {/* Top row: Route name and Best badge */}
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="font-semibold text-sm sm:text-base text-ink line-clamp-2 leading-snug">
+                          {route.description}
+                        </h3>
+                        {route.is_best && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-accent-route text-white shrink-0 shadow-sm">
+                            Fastest
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-text-muted">
+                        {route.distance_km.toFixed(1)} km total distance
+                      </span>
+                    </div>
+
+                    {/* Middle: Prominent Live Travel Time */}
+                    <div className="my-5 py-3.5 border-y border-border/60 flex items-baseline justify-between">
+                      <div className="flex flex-col">
+                        <span className="text-xs text-text-secondary uppercase tracking-wider font-semibold">
+                          Live Travel Time
+                        </span>
+                        <div className="flex items-baseline gap-1 mt-0.5">
+                          <span className="font-mono text-3xl sm:text-4xl font-bold tracking-tight text-ink">
+                            {route.live_travel_time_min < 10
+                              ? route.live_travel_time_min.toFixed(1)
+                              : Math.round(route.live_travel_time_min)}
+                          </span>
+                          <span className="text-sm font-medium text-text-secondary">min</span>
+                        </div>
+                      </div>
+
+                      <div className="text-right flex flex-col items-end">
+                        <span className="text-xs text-text-muted">Clear roads</span>
+                        <span className="text-xs font-mono font-medium text-text-secondary mt-0.5">
+                          ~{Math.round(route.free_flow_travel_time_min)} min
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Bottom: Delay & Congestion Metrics */}
+                    <div className="flex flex-col gap-2.5 text-xs">
+                      {/* PRIMARY DELAY METRIC: Lost to traffic (live - free_flow) */}
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-bg-page border border-border/60">
+                        <span className="text-text-secondary font-medium">Lost to traffic:</span>
+                        <span className="font-mono font-bold text-ink text-xs">
+                          +{trafficLostMin} min slower than clear roads
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-text-muted">Traffic intensity:</span>
+                        <span
+                          className={`font-medium px-2 py-0.5 rounded ${
+                            isHeavy
+                              ? "bg-factor-peak-dim text-factor-peak"
+                              : isModerate
+                              ? "bg-factor-event-dim text-factor-event"
+                              : "bg-factor-rain-dim text-ink"
+                          }`}
+                        >
+                          {congestionPhrase}
+                        </span>
+                      </div>
+
+                      {/* Secondary Context: Model prediction vs historical dataset baseline */}
+                      <div className="flex items-center justify-between text-text-muted pt-1 border-t border-border/40 text-[11px]">
+                        <span title="ML model predicted delay relative to historical dataset average">
+                          Vs typical conditions:
+                        </span>
+                        <span className="font-mono text-text-secondary">
+                          +{route.predicted_delay_min.toFixed(1)} min
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </ScrollReveal>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="card p-6 text-center text-xs text-text-secondary">
+            No alternate routes available for this corridor.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

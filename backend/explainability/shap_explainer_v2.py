@@ -185,6 +185,7 @@ def prepare_feature_row_v2(
     dest_lng: float,
     departure_time: datetime,
     supabase_client: Optional[Client] = None,
+    return_traffic: bool = False,
 ) -> pd.DataFrame:
     """
     Constructs a single-row feature vector matching Model V2's schema.
@@ -199,10 +200,13 @@ def prepare_feature_row_v2(
         Departure timestamp.
     supabase_client : Client, optional
         Supabase client (for weather/event lookup). Created from env if None.
+    return_traffic : bool, optional
+        If True, returns a tuple of (pd.DataFrame, traffic_dict).
 
     Returns
     -------
-    pd.DataFrame with 1 row and exactly 12 columns in FEATURE_COLUMNS_V2 order.
+    pd.DataFrame with 1 row and exactly 12 columns in FEATURE_COLUMNS_V2 order,
+    or (pd.DataFrame, dict) if return_traffic is True.
     """
     # ── 1. Initialise Supabase if needed ─────────────────────────────────
     if supabase_client is None:
@@ -267,6 +271,9 @@ def prepare_feature_row_v2(
             df_row[col] = pd.Categorical(df_row[col], categories=_model_categories_v2[col])
         else:
             df_row[col] = df_row[col].astype('category')
+
+    if return_traffic:
+        return df_row, traffic
 
     return df_row
 
@@ -341,13 +348,14 @@ def explain_prediction_v2(
     dict with route_name, predicted_delay_min, base_value_min, factors.
     """
     # 1. Prepare feature row
-    feature_row = prepare_feature_row_v2(
+    feature_row, traffic = prepare_feature_row_v2(
         origin_lat=origin_lat,
         origin_lng=origin_lng,
         dest_lat=dest_lat,
         dest_lng=dest_lng,
         departure_time=departure_time,
         supabase_client=supabase_client,
+        return_traffic=True,
     )
 
     # 2. Predict
@@ -378,10 +386,10 @@ def explain_prediction_v2(
         meta = FEATURE_MAPPING_V2.get(col)
         if meta:
             factors.append(ExplanationFactor(
-                name=meta["name"],
-                value=_to_native(val),
-                shap_value_min=sv,
-                category=meta["category"],
+                 name=meta["name"],
+                 value=_to_native(val),
+                 shap_value_min=sv,
+                 category=meta["category"],
             ))
 
     # Combined time-of-day factor
@@ -400,9 +408,18 @@ def explain_prediction_v2(
 
     resolved_name = route_name or f"({origin_lat},{origin_lng}) -> ({dest_lat},{dest_lng})"
 
+    live_time = float(traffic.get("live_travel_time_min", 0.0))
+    free_time = float(traffic.get("free_flow_travel_time_min", 0.0))
+    traffic_delay = max(0.0, live_time - free_time)
+    dist = float(traffic.get("distance_km", 0.0))
+
     return {
         "route_name": resolved_name,
         "predicted_delay_min": predicted_delay_min,
         "base_value_min": base_value_min,
+        "live_travel_time_min": round(live_time, 1),
+        "free_flow_travel_time_min": round(free_time, 1),
+        "traffic_delay_min": round(traffic_delay, 1),
+        "distance_km": round(dist, 1),
         "factors": factors,
     }
