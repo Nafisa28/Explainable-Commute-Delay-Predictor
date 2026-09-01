@@ -167,6 +167,37 @@ def predict_explain():
             route_name=route_name,
         )
 
+        # 5. If user is authenticated, save prediction to prediction_history
+        user = get_authenticated_user()
+        if user:
+            try:
+                supabase = get_supabase_client()
+                history_payload = {
+                    "user_id": user.id,
+                    "requested_time": departure_time.isoformat(),
+                    "predicted_delay": round(float(result.get("predicted_delay_min", 0.0)), 2),
+                    "shap_breakdown": {
+                        "route_name": route_name,
+                        "origin_name": origin_name or "Origin",
+                        "origin_lat": origin_lat,
+                        "origin_lng": origin_lng,
+                        "dest_name": dest_name or "Destination",
+                        "dest_lat": dest_lat,
+                        "dest_lng": dest_lng,
+                        "distance_km": result.get("distance_km"),
+                        "live_travel_time_min": result.get("live_travel_time_min"),
+                        "free_flow_travel_time_min": result.get("free_flow_travel_time_min"),
+                        "traffic_delay_min": result.get("traffic_delay_min"),
+                        "base_value_min": result.get("base_value_min"),
+                        "factors": result.get("factors", []),
+                    },
+                    "actual_delay": None,
+                }
+                supabase.table("prediction_history").insert(history_payload).execute()
+                app.logger.info(f"Saved prediction history for user {user.id}")
+            except Exception as hist_err:
+                app.logger.warning(f"Failed to auto-save prediction history for user {user.id}: {hist_err}")
+
         return jsonify(result), 200
 
     except Exception as e:
@@ -570,7 +601,142 @@ def delete_saved_route(route_id: str):
         }), 500
 
 
+@app.route("/prediction-history", methods=["GET"])
+def get_prediction_history():
+    """
+    GET /prediction-history
+    
+    Header:
+      Authorization: Bearer <supabase_access_token>
+      
+    Returns:
+      200 OK with list of prediction history records for the authenticated user,
+      ordered by requested_time descending.
+    """
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({
+            "error": "Unauthorized",
+            "message": "Missing or invalid Supabase authorization token."
+        }), 401
+
+    try:
+        supabase = get_supabase_client()
+        res = (
+            supabase.table("prediction_history")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("requested_time", desc=True)
+            .execute()
+        )
+
+        formatted_history = []
+        for row in res.data or []:
+            shap_data = row.get("shap_breakdown")
+            if isinstance(shap_data, str):
+                import json
+                try:
+                    shap_data = json.loads(shap_data)
+                except Exception:
+                    shap_data = {}
+            elif not isinstance(shap_data, dict):
+                shap_data = {}
+
+            # Determine route display name
+            route_name = (
+                shap_data.get("route_name")
+                or f"{shap_data.get('origin_name', 'Origin')} → {shap_data.get('dest_name', 'Destination')}"
+            )
+            
+            # Format predicted delay
+            pred_delay = float(row.get("predicted_delay") or 0.0)
+            actual_delay = row.get("actual_delay")
+            if actual_delay is not None:
+                actual_delay = float(actual_delay)
+
+            # Determine status
+            if actual_delay is not None:
+                diff = abs(pred_delay - actual_delay)
+                status = "Accurate" if diff <= 2.0 else "Close" if diff <= 5.0 else "Divergent"
+            else:
+                status = "Completed"
+
+            formatted_history.append({
+                "id": row.get("id"),
+                "user_id": row.get("user_id"),
+                "requested_time": row.get("requested_time"),
+                "predicted_delay": pred_delay,
+                "actual_delay": actual_delay,
+                "status": status,
+                "route_name": route_name,
+                "origin_name": shap_data.get("origin_name"),
+                "origin_lat": shap_data.get("origin_lat"),
+                "origin_lng": shap_data.get("origin_lng"),
+                "dest_name": shap_data.get("dest_name"),
+                "dest_lat": shap_data.get("dest_lat"),
+                "dest_lng": shap_data.get("dest_lng"),
+                "distance_km": shap_data.get("distance_km"),
+                "live_travel_time_min": shap_data.get("live_travel_time_min"),
+                "free_flow_travel_time_min": shap_data.get("free_flow_travel_time_min"),
+                "factors": shap_data.get("factors", []),
+                "shap_breakdown": shap_data,
+            })
+
+        return jsonify({
+            "prediction_history": formatted_history
+        }), 200
+
+    except Exception as e:
+        app.logger.error(f"Error in GET /prediction-history: {e}", exc_info=True)
+        return jsonify({
+            "error": str(e),
+            "message": "Failed to retrieve prediction history."
+        }), 500
+
+
+@app.route("/prediction-history/<prediction_id>", methods=["DELETE"])
+def delete_prediction_history(prediction_id: str):
+    """
+    DELETE /prediction-history/<prediction_id>
+    
+    Header:
+      Authorization: Bearer <supabase_access_token>
+      
+    Returns:
+      200 OK on successful deletion.
+    """
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({
+            "error": "Unauthorized",
+            "message": "Missing or invalid Supabase authorization token."
+        }), 401
+
+    try:
+        supabase = get_supabase_client()
+        res = (
+            supabase.table("prediction_history")
+            .delete()
+            .eq("id", prediction_id)
+            .eq("user_id", user.id)
+            .execute()
+        )
+
+        return jsonify({
+            "message": "Prediction history record deleted successfully.",
+            "deleted_id": prediction_id
+        }), 200
+
+    except Exception as e:
+        app.logger.error(f"Error in DELETE /prediction-history/{prediction_id}: {e}", exc_info=True)
+        return jsonify({
+            "error": str(e),
+            "message": "Failed to delete prediction history record."
+        }), 500
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"Starting Commute Delay Predictor Flask API on port {port}...")
     app.run(host="0.0.0.0", port=port, debug=True)
+

@@ -4,6 +4,7 @@ import Navbar from "@/components/Navbar";
 import SmoothScroll from "@/components/SmoothScroll";
 import CustomCursor from "@/components/CustomCursor";
 import PageTransitionProvider from "@/components/PageTransitionProvider";
+import { AuthProvider } from "@/lib/auth-context";
 import "./globals.css";
 
 const inter = Inter({
@@ -35,18 +36,20 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} ${jetbrainsMono.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <SmoothScroll>
-          <CustomCursor />
-          <Navbar />
-          <main className="flex-1 flex flex-col">
-            <PageTransitionProvider>{children}</PageTransitionProvider>
-          </main>
-          <footer className="border-t border-border py-6">
-            <div className="mx-auto max-w-[72rem] px-6 text-center text-sm text-text-secondary">
-              © 2026 CommuteDelay · Built with Next.js, Flask &amp; SHAP
-            </div>
-          </footer>
-        </SmoothScroll>
+        <AuthProvider>
+          <SmoothScroll>
+            <CustomCursor />
+            <Navbar />
+            <main className="flex-1 flex flex-col">
+              <PageTransitionProvider>{children}</PageTransitionProvider>
+            </main>
+            <footer className="border-t border-border py-6">
+              <div className="mx-auto max-w-[72rem] px-6 text-center text-sm text-text-secondary">
+                © 2026 CommuteDelay · Built with Next.js, Flask &amp; SHAP
+              </div>
+            </footer>
+          </SmoothScroll>
+        </AuthProvider>
       </body>
     </html>
   );

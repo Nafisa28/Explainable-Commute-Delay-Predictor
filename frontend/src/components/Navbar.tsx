@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -12,10 +13,17 @@ const navLinks = [
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, loading, signOut } = useAuth();
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    router.push("/");
   };
 
   return (
@@ -60,14 +68,33 @@ export default function Navbar() {
           ))}
         </ul>
 
-        {/* Auth buttons */}
-        <div className="flex items-center gap-2">
-          <Link href="/login" className="btn btn-ghost text-sm">
-            Log in
-          </Link>
-          <Link href="/signup" className="btn btn-primary text-sm">
-            Sign up
-          </Link>
+        {/* Auth section */}
+        <div className="flex items-center gap-3">
+          {loading ? (
+            <div className="h-8 w-20 bg-border/50 animate-pulse rounded-lg" />
+          ) : user ? (
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex items-center gap-1.5 text-xs text-text-secondary bg-bg-page border border-border px-3 py-1.5 rounded-full font-medium max-w-[200px] truncate">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                <span className="truncate">{user.email}</span>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="btn btn-ghost text-xs sm:text-sm text-text-secondary hover:text-ink"
+              >
+                Log out
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Link href="/login" className="btn btn-ghost text-sm">
+                Log in
+              </Link>
+              <Link href="/signup" className="btn btn-primary text-sm">
+                Sign up
+              </Link>
+            </div>
+          )}
         </div>
       </nav>
     </header>

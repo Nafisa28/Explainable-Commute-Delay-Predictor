@@ -13,6 +13,8 @@ interface MagneticButtonProps {
   href?: string;
   className?: string;
   disabled?: boolean;
+  type?: "button" | "submit" | "reset";
+  onClick?: React.MouseEventHandler<HTMLElement>;
   children: React.ReactNode;
 }
 
@@ -20,6 +22,8 @@ export default function MagneticButton({
   href,
   className = "",
   disabled = false,
+  type = "button",
+  onClick,
   children,
 }: MagneticButtonProps) {
   const ref = useRef<any>(null);
@@ -89,6 +93,7 @@ export default function MagneticButton({
       <Link
         ref={ref}
         href={href}
+        onClick={onClick}
         className={className}
         style={style}
       >
@@ -100,6 +105,8 @@ export default function MagneticButton({
   return (
     <button
       ref={ref}
+      type={type}
+      onClick={onClick}
       disabled={disabled}
       className={className}
       style={style}

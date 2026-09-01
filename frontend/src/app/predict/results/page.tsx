@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { StaggerContainer, ScrollReveal } from "@/components/ScrollReveal";
 import ShapExplanationChart, { ShapFactor } from "@/components/ShapExplanationChart";
+import { useAuth } from "@/lib/auth-context";
 
 interface ShapExplanationResponse {
   route_name: string;
@@ -28,8 +29,79 @@ interface RouteOption {
   is_best: boolean;
 }
 
+interface BestDepartureTimeResponse {
+  origin_name: string;
+  dest_name: string;
+  current_departure_time: string;
+  current_live_travel_time_min: number;
+  recommended_departure_time: string;
+  recommended_live_travel_time_min: number;
+  savings_min: number;
+  free_flow_travel_time_min: number;
+  distance_km: number;
+  timeline?: Array<{
+    departure_time: string;
+    travel_time_min: number;
+    delay_min: number;
+    is_best: boolean;
+  }>;
+}
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+function generateMockBestTimeResponse(
+  originName: string,
+  destName: string,
+  departureTimeStr: string
+): BestDepartureTimeResponse {
+  const departureDate = new Date(departureTimeStr);
+  const validDate = isNaN(departureDate.getTime()) ? new Date() : departureDate;
+  const hour = validDate.getHours();
+
+  const isMorningPeak = hour >= 8 && hour <= 10;
+  const isEveningPeak = hour >= 17 && hour <= 20;
+
+  if (isMorningPeak) {
+    const recDate = new Date(validDate.getTime() + 60 * 60 * 1000);
+    return {
+      origin_name: originName || "Origin",
+      dest_name: destName || "Destination",
+      current_departure_time: validDate.toISOString(),
+      current_live_travel_time_min: 48.0,
+      recommended_departure_time: recDate.toISOString(),
+      recommended_live_travel_time_min: 38.0,
+      savings_min: 10.0,
+      free_flow_travel_time_min: 26.0,
+      distance_km: 15.2,
+    };
+  } else if (isEveningPeak) {
+    const recDate = new Date(validDate.getTime() + 75 * 60 * 1000);
+    return {
+      origin_name: originName || "Origin",
+      dest_name: destName || "Destination",
+      current_departure_time: validDate.toISOString(),
+      current_live_travel_time_min: 54.0,
+      recommended_departure_time: recDate.toISOString(),
+      recommended_live_travel_time_min: 42.0,
+      savings_min: 12.0,
+      free_flow_travel_time_min: 26.0,
+      distance_km: 15.2,
+    };
+  } else {
+    return {
+      origin_name: originName || "Origin",
+      dest_name: destName || "Destination",
+      current_departure_time: validDate.toISOString(),
+      current_live_travel_time_min: 32.0,
+      recommended_departure_time: validDate.toISOString(),
+      recommended_live_travel_time_min: 32.0,
+      savings_min: 0.0,
+      free_flow_travel_time_min: 26.0,
+      distance_km: 15.2,
+    };
+  }
+}
 
 function generateMockShapResponse(
   originName: string,
@@ -217,21 +289,73 @@ function ResultsContent() {
   // Legacy fallback if someone opens old route_id URL
   const legacyRouteId = searchParams.get("route_id");
 
+  const { user, token } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ShapExplanationResponse | null>(null);
+
+  // Save route state
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveErrorMsg, setSaveErrorMsg] = useState<string | null>(null);
+  const [nickname, setNickname] = useState("");
+  const [showNicknameInput, setShowNicknameInput] = useState(false);
 
   // Alternate route comparison state
   const [compareRoutes, setCompareRoutes] = useState<RouteOption[]>([]);
   const [compareLoading, setCompareLoading] = useState(true);
 
+  // Best departure time recommendation state
+  const [bestTime, setBestTime] = useState<BestDepartureTimeResponse | null>(null);
+  const [bestTimeLoading, setBestTimeLoading] = useState(true);
+
   const hasCoordinates = Boolean(originLat && originLng && destLat && destLng);
   const hasValidRequest = hasCoordinates || Boolean(legacyRouteId);
+
+  const handleSaveRoute = async () => {
+    if (!token || !originLat || !originLng || !destLat || !destLng) return;
+
+    setSaveStatus("saving");
+    setSaveErrorMsg(null);
+
+    try {
+      const payload = {
+        origin_name: originName || "Custom Origin",
+        origin_lat: parseFloat(originLat),
+        origin_lng: parseFloat(originLng),
+        dest_name: destName || "Custom Destination",
+        dest_lat: parseFloat(destLat),
+        dest_lng: parseFloat(destLng),
+        nickname: nickname.trim() || undefined,
+      };
+
+      const res = await fetch(`${API_BASE_URL}/saved-routes`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const resData = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(resData.message || resData.error || `HTTP ${res.status}`);
+      }
+
+      setSaveStatus("saved");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to save route.";
+      setSaveErrorMsg(msg);
+      setSaveStatus("error");
+    }
+  };
 
   useEffect(() => {
     if (!hasValidRequest) {
       setLoading(false);
       setCompareLoading(false);
+      setBestTimeLoading(false);
       return;
     }
 
@@ -254,7 +378,11 @@ function ResultsContent() {
       setError(null);
       try {
         const endpointUrl = `${API_BASE_URL}/predict/explain?${queryParams.toString()}`;
-        const res = await fetch(endpointUrl);
+        const headers: Record<string, string> = {};
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+        const res = await fetch(endpointUrl, { headers });
         if (!res.ok) {
           throw new Error(`HTTP error ${res.status}: ${res.statusText}`);
         }
@@ -300,9 +428,38 @@ function ResultsContent() {
       }
     };
 
+    // 3. Fetch Best Departure Time Recommendation Data
+    const fetchBestTimeData = async () => {
+      setBestTimeLoading(true);
+      try {
+        const endpointUrl = `${API_BASE_URL}/predict/best-time-v2?${queryParams.toString()}`;
+        const res = await fetch(endpointUrl);
+        if (!res.ok) {
+          throw new Error(`HTTP error ${res.status}: ${res.statusText}`);
+        }
+        const json = await res.json();
+        setBestTime(json);
+      } catch (err: any) {
+        console.warn(
+          "Could not fetch from live Flask API (http://localhost:5000/predict/best-time-v2), using fallback mock best time:",
+          err
+        );
+        setBestTime(
+          generateMockBestTimeResponse(
+            originName || "Origin",
+            destName || "Destination",
+            departureTime
+          )
+        );
+      } finally {
+        setBestTimeLoading(false);
+      }
+    };
+
     fetchExplainData();
     fetchCompareData();
-  }, [originLat, originLng, destLat, destLng, originName, destName, departureTime, hasValidRequest]);
+    fetchBestTimeData();
+  }, [originLat, originLng, destLat, destLng, originName, destName, departureTime, hasValidRequest, token]);
 
   if (!hasValidRequest) {
     return (
@@ -522,6 +679,85 @@ function ResultsContent() {
                     })}
                   </span>
                 </div>
+
+                {/* Save Route Action (Available only for authenticated users) */}
+                {user && hasCoordinates && (
+                  <div className="border-t border-border/80 pt-3 flex flex-col gap-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-text-secondary">Save this commute</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowNicknameInput(!showNicknameInput)}
+                        className="text-[11px] text-accent-route hover:underline font-medium"
+                      >
+                        {showNicknameInput ? "Hide nickname" : "+ Add nickname"}
+                      </button>
+                    </div>
+
+                    {showNicknameInput && (
+                      <input
+                        type="text"
+                        placeholder="e.g. Daily Office / Home to Tech Park"
+                        value={nickname}
+                        onChange={(e) => setNickname(e.target.value)}
+                        disabled={saveStatus === "saving" || saveStatus === "saved"}
+                        className="input-field text-xs py-1.5"
+                      />
+                    )}
+
+                    {saveErrorMsg && (
+                      <p className="text-xs text-red-500 bg-red-500/10 p-2 rounded-lg border border-red-500/20">
+                        {saveErrorMsg}
+                      </p>
+                    )}
+
+                    {saveStatus === "saved" ? (
+                      <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-xs">
+                        <span className="font-medium flex items-center gap-1.5">
+                          ✓ Route saved!
+                        </span>
+                        <Link
+                          href="/saved-routes"
+                          className="font-semibold underline hover:text-emerald-700 ml-2"
+                        >
+                          View Saved Routes →
+                        </Link>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleSaveRoute}
+                        disabled={saveStatus === "saving"}
+                        className={`btn btn-secondary w-full text-xs font-semibold flex items-center justify-center gap-2 py-2 ${
+                          saveStatus === "saving" ? "opacity-75 cursor-wait" : ""
+                        }`}
+                      >
+                        {saveStatus === "saving" ? (
+                          <>
+                            <span className="h-3.5 w-3.5 border-2 border-accent-route border-t-transparent rounded-full animate-spin" />
+                            <span>Saving Route...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+                            </svg>
+                            <span>Save this route</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </ScrollReveal>
@@ -549,6 +785,165 @@ function ResultsContent() {
           </ScrollReveal>
         </div>
       </StaggerContainer>
+
+      {/* Best Time to Leave Section */}
+      <div className="mt-12">
+        <ScrollReveal delayOffset={0.18}>
+          {bestTimeLoading ? (
+            <div className="card animate-pulse flex flex-col gap-4 p-6">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-border/80" />
+                <div className="flex flex-col gap-1.5 flex-1">
+                  <div className="h-4 bg-border/80 rounded w-1/3" />
+                  <div className="h-3 bg-border/60 rounded w-2/3" />
+                </div>
+              </div>
+              <div className="h-16 bg-border/60 rounded w-full" />
+            </div>
+          ) : bestTime ? (() => {
+            const isTrivialSaving = bestTime.savings_min < 2;
+            const recDate = new Date(bestTime.recommended_departure_time);
+            const curDate = new Date(bestTime.current_departure_time);
+            const diffMs = recDate.getTime() - curDate.getTime();
+            const diffMinutes = Math.round(Math.abs(diffMs) / 60000);
+            const diffHours = Math.floor(diffMinutes / 60);
+            const diffRemainingMins = diffMinutes % 60;
+
+            let timeShiftLabel = "";
+            if (diffMs > 0) {
+              timeShiftLabel = diffHours > 0
+                ? `${diffHours}h ${diffRemainingMins > 0 ? `${diffRemainingMins}m` : ""} later`
+                : `${diffMinutes}m later`;
+            } else if (diffMs < 0) {
+              timeShiftLabel = diffHours > 0
+                ? `${diffHours}h ${diffRemainingMins > 0 ? `${diffRemainingMins}m` : ""} earlier`
+                : `${diffMinutes}m earlier`;
+            }
+
+            const formatTime = (iso: string) => {
+              const d = new Date(iso);
+              return d.toLocaleTimeString("en-US", {
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+              });
+            };
+
+            return (
+              <div
+                className={`card relative overflow-hidden ${
+                  isTrivialSaving
+                    ? "border-emerald-500/30 bg-emerald-500/[0.03]"
+                    : "border-accent-route/40 bg-accent-route/[0.03]"
+                }`}
+              >
+                {/* Accent gradient strip */}
+                <div
+                  className={`absolute top-0 left-0 right-0 h-1 ${
+                    isTrivialSaving
+                      ? "bg-gradient-to-r from-emerald-500/60 via-emerald-400/40 to-transparent"
+                      : "bg-gradient-to-r from-accent-route/60 via-accent-route/40 to-transparent"
+                  }`}
+                />
+
+                <div className="flex flex-col sm:flex-row sm:items-center gap-5 p-6 pt-7">
+                  {/* Icon */}
+                  <div
+                    className={`flex items-center justify-center h-12 w-12 rounded-xl shrink-0 text-xl ${
+                      isTrivialSaving
+                        ? "bg-emerald-500/10 border border-emerald-500/20"
+                        : "bg-accent-route/10 border border-accent-route/20"
+                    }`}
+                  >
+                    {isTrivialSaving ? "✓" : "⏰"}
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className={`badge-pill text-[10px] ${
+                        isTrivialSaving
+                          ? "!bg-emerald-500/10 !text-emerald-600 !border-emerald-500/20"
+                          : ""
+                      }`}>
+                        {isTrivialSaving ? "Good Timing" : "Optimization"}
+                      </span>
+                    </div>
+                    <h3 className="text-base sm:text-lg font-bold font-display text-ink mb-1">
+                      {isTrivialSaving
+                        ? "You're already departing at a good time"
+                        : "Better time to leave?"}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-text-secondary leading-relaxed">
+                      {isTrivialSaving ? (
+                        <>
+                          Your chosen departure at{" "}
+                          <span className="font-semibold text-ink">{formatTime(bestTime.current_departure_time)}</span>
+                          {" "}is already near-optimal — no significant time savings found within the next
+                          few hours. Estimated travel time:{" "}
+                          <span className="font-mono font-semibold text-ink">
+                            ~{Math.round(bestTime.current_live_travel_time_min)} min
+                          </span>.
+                        </>
+                      ) : (
+                        <>
+                          Leaving at{" "}
+                          <span className="font-semibold text-ink">{formatTime(bestTime.recommended_departure_time)}</span>
+                          {" "}({timeShiftLabel}) could reduce your travel time to{" "}
+                          <span className="font-mono font-semibold text-ink">
+                            ~{Math.round(bestTime.recommended_live_travel_time_min)} min
+                          </span>
+                          {" "}instead of{" "}
+                          <span className="font-mono text-text-secondary">
+                            ~{Math.round(bestTime.current_live_travel_time_min)} min
+                          </span>.
+                        </>
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Savings badge — only when meaningful */}
+                  {!isTrivialSaving && (
+                    <div className="shrink-0 flex flex-col items-center justify-center text-center bg-accent-route/10 border border-accent-route/20 rounded-xl px-5 py-3.5">
+                      <span className="text-[10px] uppercase font-semibold text-accent-route tracking-wider mb-0.5">
+                        Save
+                      </span>
+                      <span className="font-mono text-2xl sm:text-3xl font-bold tracking-tight text-accent-route">
+                        {Math.round(bestTime.savings_min)}
+                      </span>
+                      <span className="text-xs font-medium text-accent-route/80">minutes</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Detail row */}
+                {!isTrivialSaving && (
+                  <div className="border-t border-border/60 px-6 py-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-text-secondary">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-text-muted">Current departure:</span>
+                      <span className="font-mono font-medium text-ink">
+                        {formatTime(bestTime.current_departure_time)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-text-muted">Recommended:</span>
+                      <span className="font-mono font-semibold text-accent-route">
+                        {formatTime(bestTime.recommended_departure_time)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-text-muted">Free-flow baseline:</span>
+                      <span className="font-mono text-text-secondary">
+                        ~{Math.round(bestTime.free_flow_travel_time_min)} min
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })() : null}
+        </ScrollReveal>
+      </div>
 
       {/* Alternate Route Comparison Section */}
       <div className="mt-12">
