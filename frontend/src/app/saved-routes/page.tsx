@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { StaggerContainer, ScrollReveal } from "@/components/ScrollReveal";
 import TiltContainer from "@/components/TiltContainer";
 import MagneticButton from "@/components/MagneticButton";
+import ScanSweep from "@/components/ScanSweep";
 
 interface SavedRoute {
   id: string;
@@ -135,12 +135,12 @@ export default function SavedRoutesPage() {
                   Sign in to access your bookmarked Bengaluru commute routes, run instant delay predictions, and manage your daily commutes.
                 </p>
                 <div className="flex items-center gap-3 w-full sm:w-auto">
-                  <Link href="/login" className="btn btn-primary text-sm flex-1 sm:flex-initial">
+                  <MagneticButton href="/login" className="btn btn-primary text-sm flex-1 sm:flex-initial">
                     Log in
-                  </Link>
-                  <Link href="/signup" className="btn btn-secondary text-sm flex-1 sm:flex-initial">
+                  </MagneticButton>
+                  <MagneticButton href="/signup" className="btn btn-secondary text-sm flex-1 sm:flex-initial">
                     Create account
-                  </Link>
+                  </MagneticButton>
                 </div>
               </div>
             </TiltContainer>
@@ -162,9 +162,9 @@ export default function SavedRoutesPage() {
             Quickly re-run delay predictions and monitor congestion along your frequent travel paths.
           </p>
         </div>
-        <Link href="/predict" className="btn btn-primary text-sm shrink-0 self-start sm:self-auto">
+        <MagneticButton href="/predict" className="btn btn-primary text-sm shrink-0 self-start sm:self-auto">
           + Predict New Route
-        </Link>
+        </MagneticButton>
       </div>
 
       {actionFeedback && (
@@ -177,20 +177,24 @@ export default function SavedRoutesPage() {
       {/* Loading state */}
       {loading ? (
         <div className="py-16 flex flex-col items-center justify-center">
-          <div className="animate-spin h-8 w-8 border-4 border-accent-route border-t-transparent rounded-full mb-3" />
-          <p className="text-text-secondary text-sm">Loading your saved routes...</p>
+          <div className="card glow-metric is-loading relative overflow-hidden w-full max-w-sm flex flex-col items-center py-10">
+            <ScanSweep />
+            <div className="animate-spin h-8 w-8 border-4 border-accent-route border-t-transparent rounded-full mb-3" />
+            <p className="text-text-secondary text-sm">Loading your saved routes...</p>
+          </div>
         </div>
       ) : error ? (
         /* Error state */
         <div className="card text-center py-10 max-w-md mx-auto">
           <p className="text-red-500 text-sm mb-4">{error}</p>
-          <button onClick={fetchRoutes} className="btn btn-secondary text-xs">
+          <MagneticButton type="button" onClick={fetchRoutes} className="btn btn-secondary text-xs">
             Try Again
-          </button>
+          </MagneticButton>
         </div>
       ) : routes.length === 0 ? (
         /* Empty state */
         <ScrollReveal>
+          <TiltContainer>
           <div className="card text-center py-12 max-w-lg mx-auto">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-bg-surface text-accent-route text-xl">
               🗺️
@@ -201,10 +205,11 @@ export default function SavedRoutesPage() {
             <p className="text-text-secondary text-xs sm:text-sm max-w-sm mx-auto mb-6">
               Predict any commute in Bengaluru and click &quot;Save this route&quot; on the results page to bookmark it here for instant one-click predictions.
             </p>
-            <Link href="/predict" className="btn btn-primary text-sm inline-flex">
+            <MagneticButton href="/predict" className="btn btn-primary text-sm inline-flex">
               Start predicting
-            </Link>
+            </MagneticButton>
           </div>
+          </TiltContainer>
         </ScrollReveal>
       ) : (
         /* Real Routes Grid */
@@ -256,7 +261,7 @@ export default function SavedRoutesPage() {
                           onClick={() => handleDelete(route.id, displayTitle)}
                           disabled={deletingId === route.id}
                           title="Delete route"
-                          className="text-text-muted hover:text-red-500 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors shrink-0"
+                          className="touch-target text-text-muted hover:text-red-500 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors shrink-0"
                         >
                           {deletingId === route.id ? (
                             <span className="h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin block" />
@@ -301,7 +306,7 @@ export default function SavedRoutesPage() {
                       <span className="text-[11px] text-text-muted">
                         Saved {new Date(route.created_at).toLocaleDateString()}
                       </span>
-                      <Link
+                      <MagneticButton
                         href={predictUrl}
                         className="btn btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5"
                       >
@@ -319,7 +324,7 @@ export default function SavedRoutesPage() {
                           <line x1="5" y1="12" x2="19" y2="12" />
                           <polyline points="12 5 19 12 12 19" />
                         </svg>
-                      </Link>
+                      </MagneticButton>
                     </div>
                   </div>
                 </TiltContainer>

@@ -4,6 +4,7 @@ import Navbar from "@/components/Navbar";
 import SmoothScroll from "@/components/SmoothScroll";
 import CustomCursor from "@/components/CustomCursor";
 import PageTransitionProvider from "@/components/PageTransitionProvider";
+import IntroSequence from "@/components/IntroSequence";
 import { AuthProvider } from "@/lib/auth-context";
 import "./globals.css";
 
@@ -33,10 +34,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${jetbrainsMono.variable} ${fraunces.variable} h-full antialiased`}
+      className={`${inter.variable} ${jetbrainsMono.variable} ${fraunces.variable} antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-screen flex flex-col">
         <AuthProvider>
+          <IntroSequence />
           <SmoothScroll>
             <CustomCursor />
             <Navbar />

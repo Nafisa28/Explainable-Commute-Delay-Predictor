@@ -39,7 +39,7 @@ export default function HomePage() {
   // Radial spotlight background transform following cursor coordinates
   const glowBg = useTransform(
     [glowX, glowY],
-    ([x, y]) => `radial-gradient(500px circle at ${x}px ${y}px, rgba(47, 95, 232, 0.15), transparent 80%)`
+    ([x, y]) => `radial-gradient(500px circle at ${x}px ${y}px, rgba(124, 131, 253, 0.18), transparent 80%)`
   );
 
   return (
@@ -49,7 +49,7 @@ export default function HomePage() {
         ref={heroRef}
         onMouseMove={handleHeroMouseMove}
         onMouseLeave={handleHeroMouseLeave}
-        className="py-16 md:py-24 text-center relative overflow-hidden rounded-2xl"
+        className="py-10 sm:py-16 md:py-24 text-center relative overflow-hidden rounded-2xl"
       >
         {!prefersReduced && (
           <motion.div
@@ -64,7 +64,7 @@ export default function HomePage() {
         <div className="relative z-10">
           {/* Pill badge */}
           <div className="badge-pill mb-8 inline-flex">
-            <span className="h-2 w-2 rounded-full bg-factor-rain animate-pulse" />
+            <span className="live-pulse-dot" />
             <span>Live data collection running</span>
           </div>
 
@@ -72,7 +72,7 @@ export default function HomePage() {
           <SplitTextHeadline />
 
           {/* Subheading — Inter */}
-          <p className="mx-auto max-w-2xl text-lg text-text-secondary leading-relaxed mb-10">
+          <p className="mx-auto max-w-2xl text-base sm:text-lg text-text-secondary leading-relaxed mb-10 px-1">
             Predict travel delays on Bengaluru routes using real-time traffic and
             weather data — and understand{" "}
             <em className="not-italic text-ink font-medium">why</em> each
@@ -83,7 +83,7 @@ export default function HomePage() {
           <RouteLineHero />
 
           {/* CTA buttons — Magnetic hover */}
-          <div className="flex items-center justify-center gap-3 mt-10">
+          <div className="flex items-center justify-center gap-3 mt-10 flex-wrap">
             <MagneticButton href="/predict" className="btn btn-primary text-base px-7 py-3">
               Try a Prediction →
             </MagneticButton>
@@ -111,12 +111,12 @@ export default function HomePage() {
 
       {/* Animated Stats strip section */}
       <section className="py-14 text-center">
-        <h2 className="font-display text-2xl font-bold tracking-tight mb-12 text-ink">
+        <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight mb-8 sm:mb-12 text-ink px-2">
           Predicting commute delays at scale
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <TiltContainer>
-            <div className="card text-center p-8 h-full flex flex-col justify-center">
+            <div className="card glow-metric text-center p-6 sm:p-8 h-full flex flex-col justify-center">
               <div className="text-4xl sm:text-5xl font-mono font-extrabold text-accent-route mb-2">
                 <CounterNumber value={8} />
               </div>
@@ -127,7 +127,7 @@ export default function HomePage() {
           </TiltContainer>
 
           <TiltContainer>
-            <div className="card text-center p-8 h-full flex flex-col justify-center">
+            <div className="card glow-metric text-center p-6 sm:p-8 h-full flex flex-col justify-center">
               <div className="text-4xl sm:text-5xl font-mono font-extrabold text-accent-route mb-2">
                 every <CounterNumber value={30} /> min
               </div>
@@ -138,9 +138,9 @@ export default function HomePage() {
           </TiltContainer>
 
           <TiltContainer>
-            <div className="card text-center p-8 h-full flex flex-col justify-center">
+            <div className="card glow-metric text-center p-6 sm:p-8 h-full flex flex-col justify-center">
               <div className="text-4xl sm:text-5xl font-mono font-extrabold text-accent-route mb-2">
-                <CounterNumber value={100} />%
+                <CounterNumber value={100} suffix="%" />
               </div>
               <div className="text-sm font-semibold text-text-secondary">
                 explainable predictions

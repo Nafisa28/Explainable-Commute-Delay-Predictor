@@ -5,6 +5,10 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { StaggerContainer, ScrollReveal } from "@/components/ScrollReveal";
 import ShapExplanationChart, { ShapFactor } from "@/components/ShapExplanationChart";
+import TiltContainer from "@/components/TiltContainer";
+import MagneticButton from "@/components/MagneticButton";
+import ScanSweep from "@/components/ScanSweep";
+import CounterNumber from "@/components/CounterNumber";
 import { useAuth } from "@/lib/auth-context";
 
 interface ShapExplanationResponse {
@@ -473,9 +477,9 @@ function ResultsContent() {
         <p className="text-text-secondary text-sm max-w-sm mb-6">
           You need to specify origin and destination locations and departure time to generate commute delay predictions.
         </p>
-        <Link href="/predict" className="btn btn-primary text-sm">
+        <MagneticButton href="/predict" className="btn btn-primary text-sm">
           Go to Predict Page
-        </Link>
+        </MagneticButton>
       </div>
     );
   }
@@ -483,10 +487,13 @@ function ResultsContent() {
   if (loading) {
     return (
       <div className="page-container py-12 flex flex-col items-center justify-center min-h-[400px]">
-        <div className="animate-spin h-10 w-10 border-4 border-accent-route border-t-transparent rounded-full mb-4" />
-        <p className="text-text-secondary text-sm animate-pulse">
-          Fetching live traffic & calculating SHAP attributions...
-        </p>
+        <div className="card glow-metric is-loading relative overflow-hidden w-full max-w-md flex flex-col items-center py-10">
+          <ScanSweep />
+          <div className="animate-spin h-10 w-10 border-4 border-accent-route border-t-transparent rounded-full mb-4" />
+          <p className="text-text-secondary text-sm animate-pulse">
+            Fetching live traffic & calculating SHAP attributions...
+          </p>
+        </div>
       </div>
     );
   }
@@ -503,9 +510,9 @@ function ResultsContent() {
         <p className="text-text-secondary text-sm max-w-sm mb-6">
           {error || "Could not retrieve prediction data."}
         </p>
-        <Link href="/predict" className="btn btn-secondary text-sm">
+        <MagneticButton href="/predict" className="btn btn-secondary text-sm">
           Go back & try again
-        </Link>
+        </MagneticButton>
       </div>
     );
   }
@@ -557,7 +564,8 @@ function ResultsContent() {
         {/* Left Column: Delay Metrics */}
         <div className="lg:col-span-4 flex flex-col gap-6 w-full">
           <ScrollReveal delayOffset={0.05}>
-            <div className="card flex flex-col gap-5">
+            <TiltContainer>
+            <div className="card glow-metric flex flex-col gap-5">
               <div className="border-b border-border pb-4 flex items-center justify-between">
                 <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
                   {hasLiveTimes ? "Traffic Delay (vs Clear Roads)" : "Model Delay Estimate"}
@@ -574,9 +582,11 @@ function ResultsContent() {
                 {hasLiveTimes && realTrafficDelayMin !== null ? (
                   <>
                     <div className="flex items-baseline gap-1.5 mb-1">
-                      <span className="font-mono text-5xl font-bold tracking-tight text-ink tabular-nums">
-                        +{Math.round(realTrafficDelayMin)}
-                      </span>
+                      <CounterNumber
+                        value={Math.round(realTrafficDelayMin)}
+                        prefix="+"
+                        className="text-4xl sm:text-5xl font-bold tracking-tight text-ink"
+                      />
                       <span className="text-lg font-medium text-text-secondary">min</span>
                     </div>
                     <p className="text-xs sm:text-sm text-text-secondary font-medium mt-1">
@@ -586,9 +596,12 @@ function ResultsContent() {
                 ) : (
                   <>
                     <div className="flex items-baseline gap-1.5 mb-1">
-                      <span className="font-mono text-5xl font-bold tracking-tight text-ink tabular-nums">
-                        +{data.predicted_delay_min.toFixed(1)}
-                      </span>
+                      <CounterNumber
+                        value={data.predicted_delay_min}
+                        decimals={1}
+                        prefix="+"
+                        className="text-4xl sm:text-5xl font-bold tracking-tight text-ink"
+                      />
                       <span className="text-lg font-medium text-text-secondary">min</span>
                     </div>
                     <p className="text-xs sm:text-sm text-text-secondary font-medium mt-1">
@@ -619,7 +632,7 @@ function ResultsContent() {
                     <div className="flex items-center justify-between">
                       <span className="text-text-muted">Live Travel Time:</span>
                       <span className="font-mono font-bold text-ink">
-                        ~{Math.round(liveTravelMin)} min
+                        ~<CounterNumber value={Math.round(liveTravelMin)} className="font-bold text-ink" /> min
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -632,7 +645,7 @@ function ResultsContent() {
                       <div className="flex items-center justify-between">
                         <span className="text-text-muted">Distance:</span>
                         <span className="font-mono text-text-secondary">
-                          {data.distance_km.toFixed(1)} km
+                          <CounterNumber value={data.distance_km} decimals={1} /> km
                         </span>
                       </div>
                     )}
@@ -724,7 +737,7 @@ function ResultsContent() {
                         </Link>
                       </div>
                     ) : (
-                      <button
+                      <MagneticButton
                         type="button"
                         onClick={handleSaveRoute}
                         disabled={saveStatus === "saving"}
@@ -754,19 +767,20 @@ function ResultsContent() {
                             <span>Save this route</span>
                           </>
                         )}
-                      </button>
+                      </MagneticButton>
                     )}
                   </div>
                 )}
               </div>
             </div>
+            </TiltContainer>
           </ScrollReveal>
         </div>
 
         {/* Right Column: SHAP Bar Chart */}
         <div className="lg:col-span-8 w-full">
           <ScrollReveal delayOffset={0.15}>
-            <div className="card flex flex-col gap-6">
+            <div className="card glow-metric flex flex-col gap-6">
               <div>
                 <h3 className="text-base font-semibold text-ink mb-1">
                   Contributing Factors (SHAP)
@@ -790,7 +804,8 @@ function ResultsContent() {
       <div className="mt-12">
         <ScrollReveal delayOffset={0.18}>
           {bestTimeLoading ? (
-            <div className="card animate-pulse flex flex-col gap-4 p-6">
+            <div className="card animate-pulse glow-metric is-loading relative overflow-hidden flex flex-col gap-4 p-6">
+              <ScanSweep />
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-xl bg-border/80" />
                 <div className="flex flex-col gap-1.5 flex-1">
@@ -830,8 +845,11 @@ function ResultsContent() {
             };
 
             return (
+              <TiltContainer>
               <div
-                className={`card relative overflow-hidden ${
+                className={`card relative overflow-hidden glow-metric ${
+                  isTrivialSaving ? "glow-metric-rain" : "glow-metric-peak"
+                } ${
                   isTrivialSaving
                     ? "border-emerald-500/30 bg-emerald-500/[0.03]"
                     : "border-accent-route/40 bg-accent-route/[0.03]"
@@ -909,7 +927,7 @@ function ResultsContent() {
                         Save
                       </span>
                       <span className="font-mono text-2xl sm:text-3xl font-bold tracking-tight text-accent-route">
-                        {Math.round(bestTime.savings_min)}
+                        <CounterNumber value={Math.round(bestTime.savings_min)} />
                       </span>
                       <span className="text-xs font-medium text-accent-route/80">minutes</span>
                     </div>
@@ -940,6 +958,7 @@ function ResultsContent() {
                   </div>
                 )}
               </div>
+              </TiltContainer>
             );
           })() : null}
         </ScrollReveal>
@@ -972,8 +991,9 @@ function ResultsContent() {
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="card animate-pulse flex flex-col justify-between gap-4 p-6 min-h-[220px]"
+                className="card animate-pulse glow-metric is-loading relative overflow-hidden flex flex-col justify-between gap-4 p-6 min-h-[220px]"
               >
+                <ScanSweep />
                 <div className="flex flex-col gap-2">
                   <div className="h-4 bg-border/80 rounded w-3/4" />
                   <div className="h-3 bg-border/60 rounded w-1/3" />
@@ -987,7 +1007,7 @@ function ResultsContent() {
             ))}
           </div>
         ) : compareRoutes.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <StaggerContainer className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {compareRoutes.map((route, idx) => {
               const congestionPhrase = formatCongestionPhrase(route.congestion_ratio);
               const isHeavy = route.congestion_ratio >= 1.35;
@@ -1002,11 +1022,12 @@ function ResultsContent() {
 
               return (
                 <ScrollReveal key={route.route_index || idx} delayOffset={0.08 * (idx + 1)}>
+                  <TiltContainer className="h-full">
                   <div
                     className={`card relative flex flex-col justify-between h-full p-6 transition-all duration-200 hover:shadow-md ${
                       route.is_best
-                        ? "border-accent-route/50 bg-accent-route/[0.03] ring-1 ring-accent-route/30"
-                        : "hover:border-border-strong"
+                        ? "border-accent-route/50 bg-accent-route/[0.03] ring-1 ring-accent-route/30 glow-metric"
+                        : "hover:border-border-strong glow-metric"
                     }`}
                   >
                     {/* Top row: Route name and Best badge */}
@@ -1034,9 +1055,14 @@ function ResultsContent() {
                         </span>
                         <div className="flex items-baseline gap-1 mt-0.5">
                           <span className="font-mono text-3xl sm:text-4xl font-bold tracking-tight text-ink">
-                            {route.live_travel_time_min < 10
-                              ? route.live_travel_time_min.toFixed(1)
-                              : Math.round(route.live_travel_time_min)}
+                            <CounterNumber
+                              value={
+                                route.live_travel_time_min < 10
+                                  ? route.live_travel_time_min
+                                  : Math.round(route.live_travel_time_min)
+                              }
+                              decimals={route.live_travel_time_min < 10 ? 1 : 0}
+                            />
                           </span>
                           <span className="text-sm font-medium text-text-secondary">min</span>
                         </div>
@@ -1056,7 +1082,7 @@ function ResultsContent() {
                       <div className="flex items-center justify-between p-2 rounded-lg bg-bg-page border border-border/60">
                         <span className="text-text-secondary font-medium">Lost to traffic:</span>
                         <span className="font-mono font-bold text-ink text-xs">
-                          +{trafficLostMin} min slower than clear roads
+                          +<CounterNumber value={trafficLostMin} className="font-bold text-ink text-xs" /> min slower than clear roads
                         </span>
                       </div>
 
@@ -1086,10 +1112,11 @@ function ResultsContent() {
                       </div>
                     </div>
                   </div>
+                  </TiltContainer>
                 </ScrollReveal>
               );
             })}
-          </div>
+          </StaggerContainer>
         ) : (
           <div className="card p-6 text-center text-xs text-text-secondary">
             No alternate routes available for this corridor.

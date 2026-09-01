@@ -296,6 +296,8 @@ export default function ShapExplanationChart({
 }: ShapExplanationChartProps) {
   const [isAnimationActive, setIsAnimationActive] = useState(true);
   const [showAll, setShowAll] = useState(false);
+  const [isNarrow, setIsNarrow] = useState(false);
+  const [revealCount, setRevealCount] = useState(0);
 
   // Check prefers-reduced-motion
   useEffect(() => {
@@ -307,6 +309,14 @@ export default function ShapExplanationChart({
     };
     mediaQuery.addEventListener("change", listener);
     return () => mediaQuery.removeEventListener("change", listener);
+  }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 640px)");
+    const apply = () => setIsNarrow(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
   }, []);
 
   // Process, filter, and translate factors
@@ -348,6 +358,38 @@ export default function ShapExplanationChart({
   // Visible factors based on showAll toggle (default top 5)
   const visibleData = showAll ? processedData : processedData.slice(0, 5);
 
+  useEffect(() => {
+    const total = showAll
+      ? processedData.length
+      : Math.min(processedData.length, 5);
+    if (total === 0) {
+      setRevealCount(0);
+      return;
+    }
+    if (!isAnimationActive) {
+      setRevealCount(total);
+      return;
+    }
+    setRevealCount(0);
+    let shown = 0;
+    const id = window.setInterval(() => {
+      shown += 1;
+      setRevealCount(shown);
+      if (shown >= total) {
+        window.clearInterval(id);
+      }
+    }, 80);
+    return () => window.clearInterval(id);
+  }, [showAll, processedData, isAnimationActive]);
+
+  const chartData = visibleData.slice(0, revealCount).map((d) => ({
+    ...d,
+    axisLabel:
+      isNarrow && d.axisLabel.length > 16
+        ? `${d.axisLabel.slice(0, 15)}…`
+        : d.axisLabel,
+  }));
+
   // Calculate clean, rounded symmetrical bounds for X-axis
   const maxAbs = Math.max(...visibleData.map((d) => Math.abs(d.shapValue)), 1);
   const niceMax = Math.max(Math.ceil(maxAbs * 1.25), 2);
@@ -379,7 +421,7 @@ export default function ShapExplanationChart({
     );
   };
 
-  const chartHeight = Math.max(visibleData.length * 52 + 50, 240);
+  const chartHeight = Math.max(Math.max(chartData.length, 1) * (isNarrow ? 58 : 52) + 50, isNarrow ? 220 : 240);
 
   return (
     <div className="w-full flex flex-col gap-5">
@@ -416,9 +458,9 @@ export default function ShapExplanationChart({
       <div style={{ height: `${chartHeight}px`, width: "100%", outline: "none" }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
-            data={visibleData}
+            data={chartData}
             layout="vertical"
-            margin={{ top: 8, right: 45, left: 10, bottom: 8 }}
+            margin={{ top: 8, right: isNarrow ? 36 : 45, left: isNarrow ? 0 : 10, bottom: 8 }}
             barCategoryGap={10}
           >
             <XAxis
@@ -440,20 +482,20 @@ export default function ShapExplanationChart({
             <YAxis
               type="category"
               dataKey="axisLabel"
-              width={200}
+              width={isNarrow ? 112 : 200}
               axisLine={false}
               tickLine={false}
               tick={{
                 fill: "var(--color-ink)",
-                fontSize: 12,
+                fontSize: isNarrow ? 10 : 12,
                 fontWeight: 500,
               }}
             />
             <Tooltip
-              cursor={{ fill: "rgba(28, 34, 51, 0.03)" }}
+              cursor={{ fill: "rgba(35, 33, 43, 0.03)" }}
               content={({ active, payload }) => {
                 if (active && payload && payload.length) {
-                  const data = payload[0].payload as (typeof visibleData)[0];
+                  const data = payload[0].payload as (typeof chartData)[0];
                   const sign = data.shapValue > 0 ? "+" : "";
                   return (
                     <div className="bg-bg-surface border border-border px-3.5 py-3 rounded-xl shadow-lg flex flex-col gap-1.5 text-xs max-w-xs">
@@ -492,8 +534,13 @@ export default function ShapExplanationChart({
               stroke="var(--color-border)"
               strokeWidth={1.5}
             />
-            <Bar dataKey="shapValue" isAnimationActive={isAnimationActive}>
-              {visibleData.map((entry, index) => (
+            <Bar
+              dataKey="shapValue"
+              isAnimationActive={isAnimationActive}
+              animationDuration={720}
+              animationEasing="ease-out"
+            >
+              {chartData.map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
                   fill={getCategoryColor(entry.category)}
@@ -511,7 +558,7 @@ export default function ShapExplanationChart({
           <button
             type="button"
             onClick={() => setShowAll(!showAll)}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent-route hover:text-accent-route/80 bg-accent-route-dim px-3 py-1.5 rounded-full transition-colors"
+            className="touch-target inline-flex items-center gap-1.5 text-xs font-semibold text-accent-route hover:text-accent-route/80 bg-accent-route-dim px-3 py-1.5 rounded-full transition-colors"
           >
             <span>
               {showAll

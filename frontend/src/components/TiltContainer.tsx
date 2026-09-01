@@ -39,13 +39,15 @@ export default function TiltContainer({
     shadowProgress,
     [0, 1],
     [
-      "0 1px 3px rgba(28, 34, 51, 0.04), 0 1px 2px rgba(28, 34, 51, 0.02)",
-      "0 20px 25px -5px rgba(28, 34, 51, 0.1), 0 10px 10px -5px rgba(28, 34, 51, 0.06)",
+      "0 1px 3px rgba(35, 33, 43, 0.04), 0 1px 2px rgba(35, 33, 43, 0.02)",
+      "0 20px 25px -5px rgba(35, 33, 43, 0.08), 0 10px 10px -5px rgba(124, 131, 253, 0.12)",
     ]
   );
 
   useEffect(() => {
-    setPrefersReduced(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const isTouch = window.matchMedia("(pointer: coarse)").matches;
+    setPrefersReduced(reduced || isTouch);
   }, []);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -83,13 +85,13 @@ export default function TiltContainer({
         rotateY,
         scale,
         boxShadow,
-        transformStyle: "preserve-3d",
-        perspective: 1000,
+        // transformPerspective keeps the tilt without preserve-3d / translateZ,
+        // which previously created a 3D stacking context that swallowed wheel scroll.
+        transformPerspective: 1000,
+        touchAction: "pan-y",
       }}
     >
-      <div style={{ transform: "translateZ(20px)", transformStyle: "preserve-3d" }}>
-        {children}
-      </div>
+      {children}
     </motion.div>
   );
 }

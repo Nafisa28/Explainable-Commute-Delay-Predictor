@@ -33,9 +33,10 @@ export default function MagneticButton({
 
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    setPrefersReduced(reduced);
+    const isTouch = window.matchMedia("(pointer: coarse)").matches;
+    setPrefersReduced(reduced || isTouch);
 
-    if (reduced || disabled) {
+    if (reduced || isTouch || disabled) {
       setIsHovered(false);
       setOffset({ x: 0, y: 0 });
       return;

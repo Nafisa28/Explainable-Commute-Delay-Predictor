@@ -85,7 +85,7 @@ export default function DelaySeveritySlider() {
         Drag the slider to preview predicted delay for a sample route — this is illustrative demo data.
       </p>
 
-      <TiltContainer className="delay-slider-card">
+      <TiltContainer className="delay-slider-card glow-metric">
         {/* Route label */}
         <div className="text-center mb-6">
           <span className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary">

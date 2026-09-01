@@ -58,10 +58,10 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="page-container flex items-center justify-center py-20">
+    <div className="page-container flex items-center justify-center py-10 sm:py-20">
       <ScrollReveal className="w-full max-w-md">
         <TiltContainer>
-          <div className="card">
+          <div className="card glow-metric">
             <div className="text-center mb-8">
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-accent-route text-white font-bold text-lg animate-float-icon">
                 CD

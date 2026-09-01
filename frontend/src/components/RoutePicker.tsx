@@ -114,6 +114,7 @@ export default function RoutePicker({
       {/* Route List / Skeleton / Empty state */}
       <div
         className="flex flex-col gap-2 max-h-[360px] overflow-y-auto pr-1 focus:outline-none"
+        data-lenis-prevent
         role="listbox"
         aria-label="Available routes"
       >

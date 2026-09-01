@@ -22,16 +22,54 @@ export default function SmoothScroll({ children }: { children: React.ReactNode }
       duration: 1.2,
       easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       touchMultiplier: 1.5,
+      autoResize: true,
     });
     lenisRef.current = lenis;
 
+    const introMightPlay =
+      window.location.pathname === "/" &&
+      sessionStorage.getItem("introPlayed") !== "1" &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (introMightPlay) {
+      lenis.stop();
+    }
+
+    let running = true;
     function raf(time: number) {
+      if (!running) return;
       lenis.raf(time);
       requestAnimationFrame(raf);
     }
     requestAnimationFrame(raf);
 
+    const resize = () => {
+      lenis.resize();
+    };
+
+    // Recalculate scroll height after dynamic content (API-populated pages) grows.
+    const resizeObserver = new ResizeObserver(resize);
+    resizeObserver.observe(document.body);
+
+    window.addEventListener("resize", resize);
+    window.addEventListener("load", resize);
+
+    const onIntroStart = () => {
+      lenis.stop();
+    };
+    const onIntroEnd = () => {
+      lenis.start();
+      resize();
+    };
+    window.addEventListener("commute-intro-start", onIntroStart);
+    window.addEventListener("commute-intro-end", onIntroEnd);
+
     return () => {
+      running = false;
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", resize);
+      window.removeEventListener("load", resize);
+      window.removeEventListener("commute-intro-start", onIntroStart);
+      window.removeEventListener("commute-intro-end", onIntroEnd);
       lenis.destroy();
       lenisRef.current = null;
     };

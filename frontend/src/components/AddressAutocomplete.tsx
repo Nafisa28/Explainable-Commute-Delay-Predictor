@@ -320,6 +320,7 @@ export default function AddressAutocomplete({
           role="listbox"
           className="absolute top-full left-0 right-0 mt-1 z-50 bg-bg-surface border border-border rounded-xl shadow-lg overflow-hidden"
           style={{ maxHeight: "260px", overflowY: "auto" }}
+          data-lenis-prevent
         >
           {/* Results */}
           {results.length > 0 &&

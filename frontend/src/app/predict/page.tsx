@@ -4,7 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import AddressAutocomplete, { GeocodedLocation } from "@/components/AddressAutocomplete";
 import DepartureTimePicker from "@/components/DepartureTimePicker";
-import { ScrollReveal } from "@/components/ScrollReveal";
+import { StaggerContainer, ScrollReveal } from "@/components/ScrollReveal";
+import TiltContainer from "@/components/TiltContainer";
+import MagneticButton from "@/components/MagneticButton";
 
 export default function PredictPage() {
   const router = useRouter();
@@ -47,10 +49,10 @@ export default function PredictPage() {
         </p>
       </div>
 
-      <ScrollReveal>
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <StaggerContainer className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Left Column: Route selection via geocoding (7 cols on lg) */}
           <div className="lg:col-span-7">
+            <ScrollReveal>
             <div className="card flex flex-col gap-6">
               <h2 className="text-base font-semibold text-ink">Route Details</h2>
               
@@ -72,7 +74,7 @@ export default function PredictPage() {
                     setOrigin(destination);
                     setDestination(temp);
                   }}
-                  className="w-8 h-8 rounded-full border border-border bg-bg-surface text-text-muted hover:text-ink hover:border-accent-route/50 transition-all flex items-center justify-center shadow-sm"
+                  className="touch-target w-11 h-11 rounded-full border border-border bg-bg-surface text-text-muted hover:text-ink hover:border-accent-route/50 transition-all flex items-center justify-center shadow-sm"
                   title="Swap Origin and Destination"
                 >
                   <svg
@@ -103,12 +105,15 @@ export default function PredictPage() {
                 accentClass="text-accent-route"
               />
             </div>
+            </ScrollReveal>
           </div>
 
           {/* Right Column: Departure Time & Prediction Summary Review (5 cols on lg) */}
           <div className="lg:col-span-5 flex flex-col gap-6">
+            <ScrollReveal>
+            <TiltContainer>
             {/* Input & Action Card */}
-            <form onSubmit={handleSubmit} className="card flex flex-col gap-5">
+            <form onSubmit={handleSubmit} className="card glow-metric flex flex-col gap-5">
               <DepartureTimePicker
                 value={departureTime}
                 onChange={(iso) => {
@@ -164,7 +169,7 @@ export default function PredictPage() {
               </div>
 
               {/* Submit CTA */}
-              <button
+              <MagneticButton
                 type="submit"
                 disabled={!isFormValid}
                 className="btn btn-primary w-full py-3 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none transition-all flex items-center justify-center gap-2"
@@ -183,11 +188,12 @@ export default function PredictPage() {
                   <line x1="5" y1="12" x2="19" y2="12" />
                   <polyline points="12 5 19 12 12 19" />
                 </svg>
-              </button>
+              </MagneticButton>
             </form>
+            </TiltContainer>
+            </ScrollReveal>
           </div>
-        </div>
-      </ScrollReveal>
+      </StaggerContainer>
     </div>
   );
 }

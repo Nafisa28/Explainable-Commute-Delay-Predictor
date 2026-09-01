@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { ScrollReveal } from "@/components/ScrollReveal";
 import TiltContainer from "@/components/TiltContainer";
+import MagneticButton from "@/components/MagneticButton";
+import ScanSweep from "@/components/ScanSweep";
 
 interface ShapFactorItem {
   name: string;
@@ -154,12 +155,12 @@ export default function HistoryPage() {
                   Sign in to review your past commute predictions, monitor accuracy against real outcomes, and inspect SHAP factor explanations.
                 </p>
                 <div className="flex items-center gap-3 w-full sm:w-auto">
-                  <Link href="/login" className="btn btn-primary text-sm flex-1 sm:flex-initial">
+                  <MagneticButton href="/login" className="btn btn-primary text-sm flex-1 sm:flex-initial">
                     Log in
-                  </Link>
-                  <Link href="/signup" className="btn btn-secondary text-sm flex-1 sm:flex-initial">
+                  </MagneticButton>
+                  <MagneticButton href="/signup" className="btn btn-secondary text-sm flex-1 sm:flex-initial">
                     Create account
-                  </Link>
+                  </MagneticButton>
                 </div>
               </div>
             </TiltContainer>
@@ -210,9 +211,9 @@ export default function HistoryPage() {
             </svg>
             <span>Refresh</span>
           </button>
-          <Link href="/predict" className="btn btn-primary text-sm">
+          <MagneticButton href="/predict" className="btn btn-primary text-sm">
             + New Prediction
-          </Link>
+          </MagneticButton>
         </div>
       </div>
 
@@ -226,20 +227,24 @@ export default function HistoryPage() {
       {/* Loading state */}
       {loading ? (
         <div className="py-16 flex flex-col items-center justify-center">
-          <div className="animate-spin h-8 w-8 border-4 border-accent-route border-t-transparent rounded-full mb-3" />
-          <p className="text-text-secondary text-sm">Loading your prediction history...</p>
+          <div className="card glow-metric is-loading relative overflow-hidden w-full max-w-sm flex flex-col items-center py-10">
+            <ScanSweep />
+            <div className="animate-spin h-8 w-8 border-4 border-accent-route border-t-transparent rounded-full mb-3" />
+            <p className="text-text-secondary text-sm">Loading your prediction history...</p>
+          </div>
         </div>
       ) : error ? (
         /* Error state */
         <div className="card text-center py-10 max-w-md mx-auto">
           <p className="text-red-500 text-sm mb-4">{error}</p>
-          <button onClick={fetchHistory} className="btn btn-secondary text-xs">
+          <MagneticButton type="button" onClick={fetchHistory} className="btn btn-secondary text-xs">
             Try Again
-          </button>
+          </MagneticButton>
         </div>
       ) : history.length === 0 ? (
         /* Empty state */
         <ScrollReveal>
+          <TiltContainer>
           <div className="card text-center py-12 max-w-lg mx-auto">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-bg-surface text-accent-route text-2xl animate-float-icon">
               ⏱️
@@ -250,16 +255,17 @@ export default function HistoryPage() {
             <p className="text-text-secondary text-xs sm:text-sm max-w-sm mx-auto mb-6">
               When you predict travel delays on Bengaluru routes while logged in, your predictions and SHAP factor breakdowns are automatically saved here.
             </p>
-            <Link href="/predict" className="btn btn-primary text-sm inline-flex">
+            <MagneticButton href="/predict" className="btn btn-primary text-sm inline-flex">
               Run your first prediction →
-            </Link>
+            </MagneticButton>
           </div>
+          </TiltContainer>
         </ScrollReveal>
       ) : (
         /* Real Predictions Table */
         <div className="card p-0 overflow-hidden border border-border">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left border-collapse">
+            <table className="w-full min-w-[40rem] text-sm text-left border-collapse">
               <thead>
                 <tr className="border-b border-border bg-bg-page/60 text-xs font-medium text-text-muted uppercase tracking-wider">
                   <th className="py-3 px-4">Date &amp; Time</th>
@@ -377,20 +383,19 @@ export default function HistoryPage() {
                         <div className="flex items-center justify-end gap-1.5">
                           {/* Re-run button */}
                           {hasCoordinates && (
-                            <Link
+                            <MagneticButton
                               href={rerunUrl}
                               className="btn btn-secondary text-xs py-1 px-2.5 h-7"
-                              title="Re-run prediction now"
                             >
                               Re-predict
-                            </Link>
+                            </MagneticButton>
                           )}
 
                           {/* Factor Details Modal trigger */}
                           <button
                             type="button"
                             onClick={() => setSelectedRecord(row)}
-                            className="p-1.5 text-text-secondary hover:text-accent-route hover:bg-accent-route-dim rounded-lg transition-colors"
+                          className="touch-target p-1.5 text-text-secondary hover:text-accent-route hover:bg-accent-route-dim rounded-lg transition-colors"
                             title="View SHAP breakdown"
                           >
                             <svg
@@ -414,7 +419,7 @@ export default function HistoryPage() {
                             type="button"
                             onClick={() => handleDelete(row.id, row.route_name)}
                             disabled={deletingId === row.id}
-                            className="p-1.5 text-text-muted hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                            className="touch-target p-1.5 text-text-muted hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
                             title="Delete record"
                           >
                             {deletingId === row.id ? (
@@ -450,7 +455,10 @@ export default function HistoryPage() {
       {/* SHAP Breakdown Details Modal */}
       {selectedRecord && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-bg-surface border border-border rounded-2xl shadow-xl max-w-lg w-full p-6 max-h-[85vh] overflow-y-auto">
+          <div
+            className="bg-bg-surface border border-border rounded-2xl shadow-xl max-w-lg w-full p-6 max-h-[85vh] overflow-y-auto"
+            data-lenis-prevent
+          >
             <div className="flex items-start justify-between gap-4 mb-4 pb-3 border-b border-border">
               <div>
                 <span className="text-xs text-text-muted font-mono">
@@ -534,7 +542,7 @@ export default function HistoryPage() {
                 Close
               </button>
               {selectedRecord.origin_lat && selectedRecord.dest_lat && (
-                <Link
+                <MagneticButton
                   href={`/predict/results?${new URLSearchParams({
                     origin_lat: String(selectedRecord.origin_lat),
                     origin_lng: String(selectedRecord.origin_lng),
@@ -547,7 +555,7 @@ export default function HistoryPage() {
                   className="btn btn-primary text-xs py-2 px-4"
                 >
                   Re-predict this route →
-                </Link>
+                </MagneticButton>
               )}
             </div>
           </div>

@@ -76,10 +76,10 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="page-container flex items-center justify-center py-20">
+    <div className="page-container flex items-center justify-center py-10 sm:py-20">
       <ScrollReveal className="w-full max-w-md">
         <TiltContainer>
-          <div className="card">
+          <div className="card glow-metric">
             <div className="text-center mb-8">
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-accent-route text-white font-bold text-lg animate-float-icon">
                 CD
@@ -110,9 +110,9 @@ export default function SignupPage() {
                   We sent a confirmation link to <strong className="text-ink">{email}</strong>.
                   Once verified, you can sign in directly.
                 </p>
-                <Link href="/login" className="btn btn-primary inline-flex text-sm">
+                <MagneticButton href="/login" className="btn btn-primary inline-flex text-sm">
                   Go to Login
-                </Link>
+                </MagneticButton>
               </div>
             ) : (
               <form onSubmit={handleSignup} className="space-y-4">
