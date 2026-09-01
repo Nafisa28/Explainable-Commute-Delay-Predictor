@@ -9,3 +9,4 @@ requests
 python-dotenv
 supabase
 apscheduler
+gunicorn
