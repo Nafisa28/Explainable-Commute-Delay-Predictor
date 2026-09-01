@@ -71,6 +71,10 @@ def get_authenticated_user():
     except Exception as e:
         app.logger.warning(f"Supabase auth token verification error: {e}")
         return None
+    
+@app.route("/")
+def root():
+    return jsonify({"status": "ok"}), 200
 
 
 # ── Health Check ─────────────────────────────────────────────────────────────
