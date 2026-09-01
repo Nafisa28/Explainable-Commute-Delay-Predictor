@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: commutedelay-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: gunicorn backend.api.app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 1
+    envVars:
+      - key: PYTHONPATH
+        value: .
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TOMTOM_API_KEY
+        sync: false
+      - key: WEATHER_API_KEY
+        sync: false
